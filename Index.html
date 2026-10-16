@@ -645,10 +645,11 @@ async function runOutbox() {
     const cb = outboxCallbacks[job.id]; delete outboxCallbacks[job.id];
     if (cb && cb.onOk) { try { cb.onOk(lastRes); } catch (e) {} }
     persistModel();
+    if (!$('home').hidden) renderSyncBanner();
   } catch (e) {
     const msg = String((e && e.message) || e);
     job.tries++; delete job.running;
-    if (isTransientError(msg) && job.tries < 12) { saveOutbox(); scheduleOutbox(); }
+    if (isTransientError(msg) && job.tries < 12) { saveOutbox(); scheduleOutbox(); if (!$('home').hidden) renderSyncBanner(); }
     else {
       job.error = msg.replace(/^Error:\s*/, ''); saveOutbox();
       const cb = outboxCallbacks[job.id]; delete outboxCallbacks[job.id];
@@ -694,14 +695,22 @@ function jobLabel(j) {
   if (j.fn === 'saveRules') return 'Regler & lärdomar';
   return 'Ändring';
 }
-/** Ändringar som fått ett riktigt fel från servern visas på hemskärmen tills du valt "Försök igen" eller "Ta bort". Inget försvinner tyst. */
+/**
+ * Hemskärmens varning. Visas bara när något är fel: (a) servern svarade med ett riktigt fel, eller (b) en ändring har
+ * legat osynkad i över ett dygn utan att nå Google. Annars syns ingenting. Inget försvinner tyst.
+ */
+const STALE_MS = 24 * 3600 * 1000;
 function renderSyncBanner() {
   const el = $('syncBanner'); if (!el) return;
   const failed = outbox.filter(j => j.error);
-  el.hidden = !failed.length; if (!failed.length) { el.innerHTML = ''; return; }
+  const stale = outbox.filter(j => !j.error && Date.now() - j.created > STALE_MS);
+  const rows = failed.concat(stale);
+  el.hidden = !rows.length; if (!rows.length) { el.innerHTML = ''; return; }
   el.className = 'syncbanner';
-  el.innerHTML = `<div class="t">${failed.length === 1 ? 'En ändring kunde inte sparas' : failed.length + ' ändringar kunde inte sparas'}</div>` +
-    failed.map(j => `<div class="r"><span><b>${esc(jobLabel(j))}</b><br><small style="color:var(--muted)">${esc(j.error)}</small></span><button data-retry="${j.id}">Försök igen</button><button class="del" data-drop="${j.id}">Ta bort</button></div>`).join('');
+  const title = failed.length ? (failed.length === 1 ? 'En ändring kunde inte sparas' : failed.length + ' ändringar kunde inte sparas')
+    : (stale.length === 1 ? 'En ändring har inte nått Google på över ett dygn' : stale.length + ' ändringar har inte nått Google på över ett dygn');
+  el.innerHTML = `<div class="t">${title}</div>` +
+    rows.map(j => `<div class="r"><span><b>${esc(jobLabel(j))}</b><br><small style="color:var(--muted)">${esc(j.error || ('Sparad i telefonen ' + fmtDate(new Date(j.created).toISOString().slice(0, 10)) + ' – väntar på kontakt med Google'))}</small></span><button data-retry="${j.id}">Försök igen</button><button class="del" data-drop="${j.id}">Ta bort</button></div>`).join('');
   el.querySelectorAll('[data-retry]').forEach(b => b.addEventListener('click', () => { const j = outbox.find(x => x.id === b.dataset.retry); if (j) { delete j.error; j.tries = 0; saveOutbox(); } renderSyncBanner(); kickOutbox(); }));
   el.querySelectorAll('[data-drop]').forEach(b => b.addEventListener('click', () => { outbox = outbox.filter(x => x.id !== b.dataset.drop); saveOutbox(); renderSyncBanner(); if (!outboxBusy()) refreshSilently(); }));
 }
