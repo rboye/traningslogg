@@ -143,6 +143,14 @@
     background: var(--text); color: var(--bg); font-size: 13px; font-weight: 600; padding: 6px 12px 6px 10px; border-radius: 999px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
   #busy::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  #busy.wait { background: var(--warn); color: #fff; }
+  #busy.wait::before { animation: none; border-right-color: currentColor; width: 8px; height: 8px; background: currentColor; }
+  .syncbanner { background: var(--card); border: 1px solid var(--danger); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .syncbanner .t { font-weight: 700; color: var(--danger); }
+  .syncbanner .r { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; }
+  .syncbanner .r span { flex: 1; min-width: 0; }
+  .syncbanner button { font-weight: 600; color: var(--accent); padding: 6px 8px; }
+  .syncbanner button.del { color: var(--danger); }
   .primary { background: var(--accent); color: var(--accent-text); font-weight: 700; font-size: 17px; border-radius: 14px;
     height: 52px; padding: 0 26px; min-width: 130px; }
   .primary:disabled { opacity: .6; }
@@ -278,6 +286,7 @@
       <button class="iconbtn" id="refreshBtn" title="Uppdatera">↻</button>
     </div>
     <div class="stack">
+      <div id="syncBanner" hidden></div>
       <div class="stats" id="stats"></div>
       <div class="row2">
         <button class="quick" id="statsBtn"><div class="t">Statistik</div></button>
@@ -420,7 +429,7 @@
 </section>
 
 <div id="overlay" hidden></div>
-<div id="busy" hidden>Sparar…</div>
+<div id="busy" hidden>Synkar…</div>
 <div id="toast"></div>
 <div id="tip" class="tip" hidden></div>
 
@@ -598,25 +607,106 @@ function weekday(iso) { const [y,m,d] = iso.split('-').map(Number); return WEEKD
 function dateLabel(iso) { if (!iso) return ''; const w = weekday(iso); return w.charAt(0).toUpperCase() + w.slice(1) + ' ' + fmtDate(iso, true); }
 function snapshot() { return JSON.stringify(model); }
 function restore(snap) { model = JSON.parse(snap); }
-/** Kör serveranropet i bakgrunden efter att UI:t redan uppdaterats optimistiskt. */
-let pendingSaves = 0;
-function setBusy() {
+// ======================= SYNK-KÖ =======================
+// Allt som ska skrivas till sheetet läggs först i en kö i telefonen (localStorage) och visas direkt som sparat.
+// Kön skickas i tur och ordning så fort det finns nät – även efter att appen stängts eller telefonen startats om
+// (den ligger kvar tills Google bekräftat). Flera sparningar av samma pass slås ihop till den senaste versionen.
+// Servern nycklar på datum (inte radnummer), så det stämmer även om rader flyttats under tiden.
+// Medan kön inte är tom är telefonens modell sanningen; när kön är tom hämtas serverns modell och ersätter den.
+let outbox = loadOutbox();            // [{ id, fn, args, key, created, tries, error? }]
+const outboxCallbacks = {};           // id -> { onOk, onFail } – bara för jobb skapade i den här sessionen
+let outboxRunning = false, outboxTimer = null, outboxDelay = 5000, outboxSynced = 0;
+function loadOutbox() { try { const a = JSON.parse(localStorage.getItem('tl_outbox') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function saveOutbox() { try { localStorage.setItem('tl_outbox', JSON.stringify(outbox)); } catch (e) {} }
+function outboxActive() { return outbox.filter(j => !j.error); }
+function outboxBusy() { return outboxActive().length > 0; }
+/** Lägger en skrivning i kön. key (t.ex. 'P1|row:12') gör att en nyare sparning av samma sak ersätter en äldre som inte hunnit skickas. */
+function commit(fn, args, onOk, onFail, key) {
+  if (key) outbox = outbox.filter(j => { const drop = j.key === key && !j.running && !j.error; if (drop) delete outboxCallbacks[j.id]; return !drop; });
+  const job = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), fn: fn, args: args, key: key || null, created: Date.now(), tries: 0 };
+  outbox.push(job); outboxCallbacks[job.id] = { onOk: onOk, onFail: onFail };
+  saveOutbox(); persistModel(); renderSync(); runOutbox();
+}
+// Fel som betyder "försök igen senare" (inget nät, Google svarade inte). Allt annat med känd ordalydelse är ett riktigt fel.
+function isTransientError(msg) {
+  if (/Fel PIN|Ogiltig|Hittar inte|Okänd funktion|Datumet finns redan/i.test(msg)) return false;
+  return true;
+}
+async function runOutbox() {
+  if (outboxRunning) return;
+  const job = outboxActive()[0];
+  if (!job) { renderSync(); return; }
+  if (navigator.onLine === false) { scheduleOutbox(); return; }
+  outboxRunning = true; job.running = true; renderSync();
+  let lastRes = null;
+  try {
+    lastRes = await call(job.fn, pin, ...job.args);
+    outbox = outbox.filter(j => j.id !== job.id); saveOutbox(); outboxDelay = 5000; outboxSynced++;
+    const cb = outboxCallbacks[job.id]; delete outboxCallbacks[job.id];
+    if (cb && cb.onOk) { try { cb.onOk(lastRes); } catch (e) {} }
+    persistModel();
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    job.tries++; delete job.running;
+    if (isTransientError(msg) && job.tries < 12) { saveOutbox(); scheduleOutbox(); }
+    else {
+      job.error = msg.replace(/^Error:\s*/, ''); saveOutbox();
+      const cb = outboxCallbacks[job.id]; delete outboxCallbacks[job.id];
+      toast('Kunde inte spara: ' + job.error, true);
+      // Ingen återställning av modellen här: ändringen ligger kvar lokalt och i bannern tills du väljer "Försök igen" eller "Ta bort"
+      if (!$('home').hidden) renderSyncBanner();
+      if (/Fel PIN/i.test(msg)) { forgetPin(); showPin('Fel PIN'); }
+    }
+  } finally {
+    outboxRunning = false; delete job.running; renderSync();
+  }
+  if (outboxBusy()) { if (!outboxTimer) runOutbox(); }
+  else if (outboxSynced) { outboxSynced = 0; if (lastRes && lastRes.model) applyModel(lastRes.model); else refreshSilently(); } // kön tom: hämta serverns sanning (rätt radnummer m.m.)
+}
+function scheduleOutbox() {
+  clearTimeout(outboxTimer);
+  outboxTimer = setTimeout(() => { outboxTimer = null; runOutbox(); }, outboxDelay);
+  outboxDelay = Math.min(outboxDelay * 2, 5 * 60 * 1000);
+  renderSync();
+}
+function kickOutbox() { if (!outboxBusy()) return; outboxDelay = 5000; clearTimeout(outboxTimer); outboxTimer = null; runOutbox(); }
+window.addEventListener('online', kickOutbox);
+window.addEventListener('pageshow', kickOutbox);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') kickOutbox(); });
+/** Statuspillen högst upp: "Synkar…" medan ett jobb skickas, "Väntar på nät · N" när det inte går fram. Inget alls när kön är tom. */
+function renderSync() {
   const b = $('busy'); if (!b) return;
-  b.hidden = pendingSaves === 0;
-  document.querySelectorAll('.primary[data-savebtn]').forEach(btn => { btn.disabled = pendingSaves > 0; btn.textContent = pendingSaves > 0 ? 'Sparar…' : btn.dataset.savebtn; });
+  const n = outboxActive().length;
+  if (!n) { b.hidden = true; return; }
+  const running = outbox.some(j => j.running);
+  b.hidden = false; b.classList.toggle('wait', !running);
+  b.textContent = running ? 'Synkar…' + (n > 1 ? ' ' + n : '') : 'Väntar på nät · ' + n + (n === 1 ? ' ändring' : ' ändringar');
+}
+function jobLabel(j) {
+  const a = j.args || [];
+  if (j.fn === 'saveSession') return (a[0] && model.passes[a[0].pass] ? model.passes[a[0].pass].title : 'Pass') + ' ' + fmtDate(a[0] && a[0].date);
+  if (j.fn === 'logDate') return secTitle(a[0]) + ' ' + fmtDate(a[1]);
+  if (j.fn === 'deleteEntry') return 'Borttagning ' + fmtDate(a[2]);
+  if (j.fn === 'saveRules') return 'Regler & lärdomar';
+  return 'Ändring';
+}
+/** Ändringar som fått ett riktigt fel från servern visas på hemskärmen tills du valt "Försök igen" eller "Ta bort". Inget försvinner tyst. */
+function renderSyncBanner() {
+  const el = $('syncBanner'); if (!el) return;
+  const failed = outbox.filter(j => j.error);
+  el.hidden = !failed.length; if (!failed.length) { el.innerHTML = ''; return; }
+  el.className = 'syncbanner';
+  el.innerHTML = `<div class="t">${failed.length === 1 ? 'En ändring kunde inte sparas' : failed.length + ' ändringar kunde inte sparas'}</div>` +
+    failed.map(j => `<div class="r"><span><b>${esc(jobLabel(j))}</b><br><small style="color:var(--muted)">${esc(j.error)}</small></span><button data-retry="${j.id}">Försök igen</button><button class="del" data-drop="${j.id}">Ta bort</button></div>`).join('');
+  el.querySelectorAll('[data-retry]').forEach(b => b.addEventListener('click', () => { const j = outbox.find(x => x.id === b.dataset.retry); if (j) { delete j.error; j.tries = 0; saveOutbox(); } renderSyncBanner(); kickOutbox(); }));
+  el.querySelectorAll('[data-drop]').forEach(b => b.addEventListener('click', () => { outbox = outbox.filter(x => x.id !== b.dataset.drop); saveOutbox(); renderSyncBanner(); if (!outboxBusy()) refreshSilently(); }));
 }
 function flashSaved() {
-  document.querySelectorAll('.primary[data-savebtn]').forEach(btn => { btn.textContent = 'Sparat ✓'; btn.classList.add('saved'); setTimeout(() => { if (!pendingSaves) { btn.textContent = btn.dataset.savebtn; btn.classList.remove('saved'); } }, 1800); });
-}
-/** Kör serveranropet i bakgrunden efter att UI:t redan uppdaterats optimistiskt. "Sparar…" visas tills servern svarat. */
-function commit(promise, onOk, onFail) {
-  pendingSaves++; setBusy();
-  promise.then(res => { pendingSaves--; setBusy(); if (res && res.model) model = res.model; if (onOk) onOk(res); persistModel(); })
-         .catch(e => { pendingSaves--; setBusy(); toast('Kunde inte spara: ' + e.message, true); if (onFail) onFail(e); });
+  document.querySelectorAll('.primary[data-savebtn]').forEach(btn => { btn.textContent = 'Sparat ✓'; btn.classList.add('saved'); setTimeout(() => { btn.textContent = btn.dataset.savebtn; btn.classList.remove('saved'); }, 1800); });
 }
 /** Tar emot en färsk modell från servern och ritar om den vy som visas – men bara om något ändrats och användaren inte håller på att ändra. */
 function applyModel(fresh) {
-  if (!fresh || pendingSaves > 0) return; // mitt i en sparning: den lokala modellen ligger före servern, rör den inte
+  if (!fresh || outboxBusy()) return; // osynkade ändringar i kön: telefonens modell ligger före servern, rör den inte (hämtas igen när kön är tom)
   const changed = JSON.stringify(fresh) !== JSON.stringify(model);
   model = fresh; persistModel();
   if (!changed) return;
@@ -634,7 +724,7 @@ async function refreshSilently() {
 function cachedModel() { try { const s = localStorage.getItem('tl_model'); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function persistModel() { try { if (model) localStorage.setItem('tl_model', JSON.stringify(model)); } catch (e) {} }
 function clearCachedModel() { try { localStorage.removeItem('tl_model'); } catch (e) {} }
-window.addEventListener('pagehide', () => { if (!pendingSaves) persistModel(); });
+window.addEventListener('pagehide', persistModel);
 
 // ------- Serverbrygga -------
 // Inuti Apps Script används google.script.run. I den statiska appen (GitHub Pages) skickas samma anrop som JSON via fetch till doPost.
@@ -714,6 +804,7 @@ function showHome() {
   const m = model;
   $('homeTitle').textContent = 'Träningslogg';
   $('homeSub').textContent = fmtDate(todayStr(), true);
+  renderSyncBanner();
   const last = {};
   ['P1','P2'].forEach(k => {
     const p = m.passes[k], e = latestByDate(p.entries);
@@ -746,7 +837,10 @@ function showHome() {
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-$('refreshBtn').addEventListener('click', async () => { try { await loadModel(); showHome(); toast('Uppdaterat'); } catch (e) { toast(e.message, true); } });
+$('refreshBtn').addEventListener('click', async () => {
+  if (outboxBusy()) { kickOutbox(); return toast('Synkar osparade ändringar först…'); }
+  try { await loadModel(); showHome(); toast('Uppdaterat'); } catch (e) { toast(e.message, true); }
+});
 document.querySelectorAll('.passbtn').forEach(b => b.addEventListener('click', () => openPass(b.dataset.pass)));
 document.querySelectorAll('.quick[data-section]').forEach(b => b.addEventListener('click', () => openSection(b.dataset.section)));
 
@@ -765,7 +859,7 @@ function renderSection() {
     if (y !== curYear) { curYear = y; const n = list.filter(x => x.date.startsWith(y)).length; html += `<div class="yr"><span>${y}</span><small>${n} pass</small></div>`; }
     const confirm = sec.pendingDel === e.row;
     html += `<div class="row ${e.pending ? 'pending' : ''}"><div class="d">${fmtDate(e.date)}</div>
-      ${e.pending ? '<span class="pend">sparar…</span>' : `<button class="danger ${confirm ? 'confirm' : ''}" data-del="${e.row}" style="padding:6px 10px;font-size:14px">${confirm ? 'Bekräfta' : 'Ta bort'}</button>`}</div>`;
+      ${e.pending ? '<span class="pend">synkar…</span>' : `<button class="danger ${confirm ? 'confirm' : ''}" data-del="${e.row}" style="padding:6px 10px;font-size:14px">${confirm ? 'Bekräfta' : 'Ta bort'}</button>`}</div>`;
   });
   $('secList').innerHTML = html || '<div class="center">Inget loggat än</div>';
   $('secList').querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => deleteSectionEntry(+b.dataset.del)));
@@ -780,7 +874,7 @@ function deleteSectionEntry(row) {
   const snap = snapshot();
   model[key] = model[key].filter(x => x.row !== row); sec.pendingDel = null; renderSection();
   toast(secTitle(key) + ' ' + fmtDate(e.date) + ' borttaget');
-  commit(api('deleteEntry', key, row, e.date), () => { if (!$('secView').hidden && sec && sec.key === key) renderSection(); },
+  commit('deleteEntry', [key, row, e.date], () => { if (!$('secView').hidden && sec && sec.key === key) renderSection(); },
     () => { restore(snap); if (!$('secView').hidden) renderSection(); });
 }
 $('secBack').addEventListener('click', showHome);
@@ -791,12 +885,11 @@ $('secSave').addEventListener('click', () => {
   const snap = snapshot();
   const tempRow = -Date.now();
   model[key].push({ row: tempRow, date: d, pending: true }); renderSection();
-  commit(api('logDate', key, d), (res) => {
+  toast(secTitle(key) + ' ' + fmtDate(d) + ' sparat ✓'); flashSaved();
+  commit('logDate', [key, d], (res) => {
     const e = model[key].find(x => x.row === tempRow); if (e) { if (res && res.row) e.row = res.row; delete e.pending; }
-    toast(secTitle(key) + ' ' + fmtDate(d) + ' sparat ✓'); flashSaved();
     if (!$('secView').hidden && sec && sec.key === key) renderSection();
-    refreshSilently(); // raderna under kan ha flyttats ett steg
-  }, () => { restore(snap); if (!$('secView').hidden) renderSection(); });
+  }, () => { restore(snap); if (!$('secView').hidden) renderSection(); }, key + '|' + d);
 });
 
 // ------- PASS -------
@@ -879,7 +972,7 @@ function renderPass() {
   $('histCount').textContent = '(' + sorted.length + ' pass)';
   $('histBody').hidden = !form.histOpen; $('histToggle').setAttribute('aria-expanded', form.histOpen ? 'true' : 'false');
   $('hist').innerHTML = sorted.slice(0, limit).map(e => { const v = entryVolume(e, p); return `<button class="item ${e.row === form.row ? 'active' : ''} ${e.pending ? 'pending' : ''}" data-row="${e.row}">
-      <div class="d">${fmtDate(e.date)}${e.pending ? '<span class="pend">sparar…</span>' : ''}</div>
+      <div class="d">${fmtDate(e.date)}${e.pending ? '<span class="pend">synkar…</span>' : ''}</div>
       <div class="v ${v ? '' : 'nodata'}">${v ? volLine(p, v) : '–'}</div>
     </button>`; }).join('') || '<div class="center">Inga pass än</div>';
   $('moreBtn').hidden = sorted.length <= limit;
@@ -980,7 +1073,7 @@ function applyReorder(order) {
   form.ex = perm(form.ex); form.baseline = perm(form.baseline); form.baselineReps = perm(form.baselineReps); form.done = perm(form.done || []); form.infoEdit = null;
   saveDone(form.pass, form.date, form.done, form.finDone);
   renderPass(); toast('Ny ordning sparad');
-  commit(api('reorderExercises', key, order), () => { if (!$('pass').hidden && form.pass === key && !form.dirty) { readForm(); renderPass(); } },
+  commit('reorderExercises', [key, order], () => { if (!$('pass').hidden && form.pass === key && !form.dirty) { readForm(); renderPass(); } },
     () => { restore(snap); if (!$('pass').hidden && form.pass === key) { const cur = form.row && form.row > 0 ? model.passes[key].entries.find(x => x.row === form.row) : undefined; openPass(key, cur); } });
 }
 
@@ -994,7 +1087,7 @@ function saveExerciseInfo(i) {
   const snap = snapshot();
   p.exercises[i] = txt ? name + ' [' + txt + ']' : name;
   form.infoEdit = null; renderPass(); toast('Övning sparad');
-  commit(api('saveExercise', key, i, name, txt), null, () => { restore(snap); if (!$('pass').hidden && form.pass === key) { readForm(); renderPass(); } });
+  commit('saveExercise', [key, i, name, txt], null, () => { restore(snap); if (!$('pass').hidden && form.pass === key) { readForm(); renderPass(); } });
 }
 // Avslutande-texten (fritext, gäller passet)
 let finEdit = false;
@@ -1008,7 +1101,7 @@ function renderFinisher(p) {
     $('finSave').addEventListener('click', () => {
       const v = $('finText').value.replace(/\s*\n+\s*/g, ' ').trim(); const key = form.pass; const snap = snapshot();
       model.passes[key].finisher = 'Avslutande: ' + v; finEdit = false; renderFinisher(model.passes[key]); toast('Avslutande sparat');
-      commit(api('saveFinisher', key, v), null, () => { restore(snap); if (!$('pass').hidden && form.pass === key) renderFinisher(model.passes[key]); });
+      commit('saveFinisher', [key, v], null, () => { restore(snap); if (!$('pass').hidden && form.pass === key) renderFinisher(model.passes[key]); });
     });
     $('finText').focus();
   } else {
@@ -1078,7 +1171,7 @@ $('deleteBtn').addEventListener('click', () => {
   const snap = snapshot();
   p.entries = p.entries.filter(x => x.row !== row);
   toast('Passet ' + fmtDate(e.date) + ' borttaget'); openPass(key);
-  commit(api('deleteEntry', key, row, e.date), () => { if (!$('pass').hidden && form.pass === key && !form.dirty) { readForm(); renderPass(); } },
+  commit('deleteEntry', [key, row, e.date], () => { if (!$('pass').hidden && form.pass === key && !form.dirty) { readForm(); renderPass(); } },
     () => { restore(snap); if (!$('pass').hidden && form.pass === key) openPass(key, e); });
 });
 
@@ -1108,25 +1201,25 @@ $('saveBtn').addEventListener('click', () => {
   const pc = volume ? volPctStr(p, volume) : '';
   const tempRow = entry.row;
   openPass(key, entry);
+  // Sparat direkt (i telefonen + i kön); Google bekräftar i bakgrunden
+  toast((isNew ? 'Sparat ✓ ' : 'Uppdaterat ✓ ') + fmtDate(payload.date) + (volume ? ' · ' + (pc ? pc + ' · ' : '') + fmtVol(volume) : '')); flashSaved();
 
-  commit(api('saveSession', payload), (res) => {
-    // Servern har svarat: uppdatera raden med serverns radnummer/formelvärden och bekräfta
+  commit('saveSession', [payload], (res) => {
+    // Servern har bekräftat: uppdatera raden med serverns radnummer
     const e = model.passes[key].entries.find(x => x.row === tempRow) || model.passes[key].entries.find(x => x.date === payload.date);
     if (e && res && res.saved) Object.assign(e, res.saved); else if (e && res && res.row) e.row = res.row;
     if (e) delete e.pending;
-    toast((isNew ? 'Sparat ✓ ' : 'Uppdaterat ✓ ') + fmtDate(payload.date) + (volume ? ' · ' + (pc ? pc + ' · ' : '') + fmtVol(volume) : '')); flashSaved();
     if (!$('pass').hidden && form.pass === key) {
       if (e) { form.row = e.row; form.origDate = e.date; }
       if (!form.dirty) { readForm(); renderPass(); }
     }
-    if (res && res.isNew) refreshSilently(); // ny rad skjuter ned raderna under – hämta rätt radnummer i bakgrunden
   }, () => {
     restore(snap);
     if (!$('pass').hidden && form.pass === key) {
       openPass(key, payload.row && payload.row > 0 ? model.passes[key].entries.find(x => x.row === payload.row) : undefined);
       form.date = payload.date; form.ex = cells.map((c, i) => withReps(parseCell(c), reps[i], payload.date)); form.row = payload.row; form.origDate = payload.origDate; renderPass();
     }
-  });
+  }, key + '|row:' + tempRow); // samma pass (samma rad/tillfälliga rad) i kön igen → den senaste versionen ersätter den äldre
 });
 
 // ======================= STATISTIK =======================
@@ -1458,7 +1551,7 @@ async function saveRule(text) {
   const snap = snapshot();
   if (val === null) g.items.splice(rulesEdit.i, 1); else g.items[rulesEdit.i] = val;
   rulesEdit = null; renderRules(); toast(val === null ? 'Punkten borttagen' : 'Sparat');
-  commit(api('saveRules', [{ row: g.row, heading: g.heading, items: g.items.slice() }]),
+  commit('saveRules', [[{ row: g.row, heading: g.heading, items: g.items.slice() }]],
     () => { if (!$('rulesView').hidden && !rulesEdit) renderRules(); },
     () => { restore(snap); if (!$('rulesView').hidden) renderRules(); });
 }
@@ -1474,7 +1567,8 @@ $('rulesBack').addEventListener('click', showHome);
   const cached = cachedModel();
   if (cached) { model = cached; showHome(); } else loading(true);
   // getData autentiserar självt – inget separat checkPin-anrop
-  try { const fresh = await call('getData', p); rememberPin(p); if (cached) applyModel(fresh); else { model = fresh; persistModel(); showHome(); } }
+  if (cached) kickOutbox(); // osynkade ändringar från förra gången skickas först
+  try { const fresh = await call('getData', p); rememberPin(p); if (cached) applyModel(fresh); else { model = fresh; persistModel(); showHome(); kickOutbox(); } }
   catch (e) {
     const bad = /Fel PIN/i.test(e.message || '');
     if (bad || !cached) { forgetPin(); showPin(bad ? 'Fel PIN' : (e.message || '')); }
