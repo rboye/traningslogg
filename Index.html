@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Träningslogg</title>
+<style>
+  :root {
+    --bg: #f2f3f6; --card: #ffffff; --text: #16181d; --muted: #6b7280; --line: #e4e6eb;
+    --accent: #0a7d4f; --accent-text: #ffffff; --soft: #e7f5ee; --danger: #c93a3a; --warn: #b7791f;
+    --input: #f6f7f9; --input-border: #d7dae0; --shadow: 0 1px 2px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --card: #1a1d24; --text: #f1f2f4; --muted: #9aa0aa; --line: #2a2e37;
+      --accent: #2fbf7f; --accent-text: #08110c; --soft: #17352a; --danger: #ff6b6b; --warn: #e0a84a;
+      --input: #12151b; --input-border: #353a45; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, Roboto, sans-serif; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  [hidden] { display: none !important; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  input, textarea { font: inherit; color: var(--text); }
+  a { color: var(--accent); }
+
+  .wrap { max-width: 560px; margin: 0 auto; padding: 12px 16px 24px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0 12px; }
+  .topbar h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
+  .topbar .sub { color: var(--muted); font-size: 14px; }
+  .iconbtn { min-width: 52px; height: 50px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 12px; color: var(--accent); font-weight: 600; font-size: 20px; padding: 0 14px; }
+  .iconbtn:active { background: var(--soft); }
+  .backbtn { height: 46px; min-width: 112px; padding: 0 18px; border: 1px solid var(--input-border); border-radius: 12px;
+    color: var(--accent); font-weight: 600; font-size: 16px; background: var(--card); box-shadow: var(--shadow); }
+  .backbtn:active { background: var(--soft); }
+
+  .card { background: var(--card); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+  .stack > * + * { margin-top: 12px; }
+  #exList > * + * { margin-top: 9px; }
+
+  .passbtn { display: flex; width: 100%; text-align: left; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 18px 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); }
+  /* Passet som är "på tur" (det som inte kördes senast) får en liten grön rad "Nästa pass" under rubriken */
+  .passbtn .duesub { color: color-mix(in srgb, var(--accent) 80%, var(--muted)); font-size: 12.5px; font-weight: 500; margin-top: 2px; }
+  .passbtn .duesub.today { color: var(--accent); }
+  .passbtn .duesub.dim { color: var(--muted); }   /* "Nästa pass" blir grått när ett pass redan är gjort idag */
+  /* Statistik / Regler: lika höga som PASS-knapparna */
+  #statsBtn, #rulesBtn { min-height: 77px; }
+  .passbtn:active { transform: scale(.99); background: var(--soft); }
+  .passbtn .big { font-size: 20px; font-weight: 700; }
+  .passbtn .last { color: var(--muted); font-size: 14px; text-align: right; white-space: nowrap; line-height: 1.4; }
+  .passbtn .last b { color: var(--text); font-weight: 700; }
+  .passbtn .chev { color: var(--muted); font-size: 22px; margin-left: 4px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .quick { display: flex; flex-direction: column; justify-content: center; min-height: 58px; padding: 14px 14px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); text-align: left; box-shadow: var(--shadow); }
+  .quick:active { background: var(--soft); }
+  .quick .t { font-weight: 600; }
+  .quick .s { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { background: var(--soft); color: var(--accent); border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 600; }
+
+  details.rules summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+  details.rules summary::-webkit-details-marker { display: none; }
+  details.rules summary::after { content: "+"; color: var(--muted); font-size: 20px; }
+  details.rules[open] summary::after { content: "–"; }
+  details.rules p { color: var(--muted); font-size: 14px; margin: 10px 0 0; white-space: pre-wrap; }
+
+  .foot { color: var(--muted); font-size: 13px; text-align: center; margin-top: 20px; line-height: 1.6; }
+
+  /* Pass-vy */
+  .datebar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .datebar label { color: var(--muted); font-size: 14px; }
+  input[type=date] { -webkit-appearance: none; appearance: none; background: var(--input); border: 1px solid var(--input-border);
+    border-radius: 10px; padding: 8px 10px; min-height: 44px; font-size: 16px; font-weight: 600; }
+  .editmode { font-size: 13px; color: var(--warn); font-weight: 600; }
+  .datepill { background: var(--card) !important; border: 1px solid var(--line) !important; box-shadow: var(--shadow); border-radius: 12px !important;
+    min-height: 49px !important; padding: 9px 14px !important; font-size: 17px !important; }
+
+  .ex { padding: 6px 14px 5px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: pan-y; }
+  .ex input, .ex textarea { -webkit-user-select: text; user-select: text; }
+  .ex.dragging { position: relative; z-index: 5; box-shadow: 0 10px 28px rgba(0,0,0,.2); border-color: var(--accent); background: var(--card); }
+  .ex.dragging .name { color: var(--accent); }
+  /* Avbockad övning: tonas ned med en mjuk övergång, allt går fortfarande att ändra */
+  .ex, .fin { transition: opacity .25s ease, background-color .25s ease; }
+  .ex.done, .fin.done { opacity: .40; background: color-mix(in srgb, var(--card) 52%, var(--bg)); }
+  .donebox { flex: none; width: 20px; height: 20px; border-radius: 6.5px; border: 1.5px solid var(--input-border); background: var(--input);
+    display: inline-flex; align-items: center; justify-content: center; color: transparent; margin-top: -1px; margin-bottom: -6px; transition: background-color .2s, border-color .2s, color .2s; }
+  .donebox:active { transform: scale(.94); }
+  .ex.done .donebox, .fin.done .donebox { background: var(--muted); border-color: var(--muted); color: var(--card); }
+  .ex .head, .fin .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .ex .name { font-weight: 700; font-size: 17px; line-height: 1.25; }
+  .ex .hint { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .sets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 2px; align-items: center; }
+  .setcol { display: flex; flex-direction: column; gap: 3px; align-items: stretch; min-width: 0; }
+  .setcol .rep { width: 100%; height: 23px; text-align: center; font-size: 14px; font-weight: 600; border-radius: 9px; color: var(--muted);
+    background: var(--input); border: 1px solid var(--input-border); padding: 0 4px; }
+  .setcol .rep:focus { outline: 2px solid var(--accent); border-color: transparent; color: var(--text); }
+  .setcol .rep.changed { border-color: var(--accent); color: var(--text); }
+  .setlbl { display: flex; gap: 8px; margin-top: 2px; }
+  .set { width: 100%; height: 36px; text-align: center; font-size: 20px; font-weight: 600; border-radius: 12px;
+    background: var(--input); border: 1px solid var(--input-border); padding: 0 4px; }
+  .set:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .set.changed { border-color: var(--accent); background: var(--soft); }
+  .textcell { width: 100%; min-height: 50px; font-size: 17px; border-radius: 12px; background: var(--input);
+    border: 1px solid var(--input-border); padding: 10px 12px; margin-top: 10px; }
+
+  textarea.note { width: 100%; min-height: 64px; resize: vertical; border-radius: 12px; background: var(--input);
+    border: 1px solid var(--input-border); padding: 10px 12px; font-size: 16px; }
+  .finisher { color: var(--text); font-size: 16px; line-height: 1.45; }
+  .finisher b { color: var(--text); }
+
+  .hist .item { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; text-align: left;
+    padding: 12px 0; border-top: 1px solid var(--line); }
+  .hist .item:first-of-type { border-top: 0; }
+  .hist .d { font-weight: 600; min-width: 92px; }
+  .hist .v { color: var(--muted); font-size: 14px; flex: 1; text-align: right; }
+  .hist .v b { color: var(--text); font-size: 15px; }
+  .hist .v.nodata { font-weight: 400; color: var(--muted); opacity: .8; padding-right: 2px; }
+  .hist .item.active .d { color: var(--accent); }
+  .more { width: 100%; text-align: center; color: var(--accent); padding: 10px; font-weight: 600; }
+  /* Historiken är hopfälld som standard; rubriken är en knapp med pil som vänds när den öppnas */
+  .histhead { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; font-weight: 700; padding: 2px 0; color: var(--text); }
+  .histhead .cnt { color: var(--muted); font-weight: 500; font-size: 14px; }
+  .histhead svg { color: var(--muted); flex: none; transition: transform .2s ease; }
+  .histhead[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .histhead[aria-expanded="true"] { margin-bottom: 4px; }
+
+  /* Spara · siffror · datum – knapp och datumfält har exakt samma höjd (explicit height på båda) */
+  .saverow { display: flex; align-items: center; gap: 10px; }
+  .saverow .primary { height: 46px; min-height: 0; min-width: 104px; padding: 0 16px; font-size: 16px; flex: none; border-radius: 12px; }
+  .saverow .summa b, .saverow .summa span { font-variant-numeric: tabular-nums; }
+  .saverow .summa { flex: 1; line-height: 1.15; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+  .saverow .summa b { font-size: 13px; white-space: nowrap; }
+  .saverow .summa span { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .saverow .datepill { flex: none; height: 46px !important; min-height: 0 !important; box-sizing: border-box; padding: 0 12px !important; font-size: 16px !important; line-height: 44px; }
+  .saverow .datepill::-webkit-calendar-picker-indicator { display: none; }
+  .primary.saved { background: var(--soft); color: var(--accent); }
+  #busy { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 45;
+    background: var(--text); color: var(--bg); font-size: 13px; font-weight: 600; padding: 6px 12px 6px 10px; border-radius: 999px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
+  #busy::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .primary { background: var(--accent); color: var(--accent-text); font-weight: 700; font-size: 17px; border-radius: 14px;
+    height: 52px; padding: 0 26px; min-width: 130px; }
+  .primary:disabled { opacity: .6; }
+  .danger { color: var(--danger); font-weight: 600; padding: 10px 12px; border-radius: 10px; }
+  .danger.confirm { background: var(--danger); color: #fff; }
+  .ghost { color: var(--accent); font-weight: 600; padding: 10px 12px; }
+
+  /* PIN */
+  .pinwrap { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  .pinwrap h1 { margin: 0 0 6px; }
+  .pinwrap p { color: var(--muted); margin: 0 0 22px; }
+  .dots { display: flex; gap: 14px; justify-content: center; margin-bottom: 22px; }
+  .dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--muted); }
+  .dot.on { background: var(--accent); border-color: var(--accent); }
+  .pininput { font-size: 28px; letter-spacing: 12px; text-align: center; width: 180px; height: 56px; border-radius: 14px;
+    background: var(--input); border: 1px solid var(--input-border); }
+  .pinerr { color: var(--danger); min-height: 22px; margin-top: 10px; font-weight: 600; }
+
+  /* Sheet (random/hemma) */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; z-index: 20; }
+  .sheet { background: var(--card); width: 100%; max-width: 560px; border-radius: 20px 20px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); }
+  .sheet h3 { margin: 0 0 10px; }
+  .sheet .actions { display: flex; gap: 10px; margin-top: 14px; }
+  .sheet .actions .primary { flex: 1; }
+  .sheet .cancel { padding: 0 16px; color: var(--muted); font-weight: 600; }
+  .sheet .lastlog { color: var(--muted); font-size: 14px; margin-top: 8px; }
+
+  #toast { position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px);
+    background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 14px; font-weight: 600; opacity: 0; transition: .25s; z-index: 30;
+    max-width: 90vw; text-align: center; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast.err { background: var(--danger); color: #fff; }
+  #loading { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: var(--accent); transform-origin: left;
+    animation: load 1.2s ease-in-out infinite; z-index: 40; }
+  @keyframes load { 0% { transform: scaleX(0); } 50% { transform: scaleX(.7); } 100% { transform: scaleX(1); opacity: 0; } }
+  .center { text-align: center; color: var(--muted); padding: 40px 0; }
+
+  /* Statistik */
+  :root { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --bar: #9ec5f4; --grid: #e6e7ea; }
+  @media (prefers-color-scheme: dark) { :root { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --bar: #1c5cab; --grid: #2a2e37; } }
+  .charthead { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+  .ctitle { font-weight: 700; }
+  .csub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .segrow { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 10px; }
+  .seg { display: inline-flex; background: var(--input); border: 1px solid var(--input-border); border-radius: 10px; padding: 2px; }
+  .seg button { padding: 6px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--muted); min-height: 32px; }
+  .seg button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  .chart { position: relative; width: 100%; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart text { font-family: inherit; font-size: 11px; fill: var(--muted); }
+  .chart .grid line { stroke: var(--grid); stroke-width: 1; }
+  .chart .axis line { stroke: var(--line); }
+  .chart .ser { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .dot { stroke: var(--card); stroke-width: 2; }
+  .chart .lbl { font-weight: 600; fill: var(--text); }
+  .chart .xh { stroke: var(--muted); stroke-dasharray: 3 3; }
+  .chart .bar { rx: 0; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+  .tip { position: fixed; z-index: 35; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.15); pointer-events: none; white-space: nowrap; }
+  .tip b { font-weight: 700; }
+  .tip .r { display: flex; justify-content: space-between; gap: 12px; }
+  .tip .r i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; background: var(--c); }
+  .sparks .sp { display: grid; grid-template-columns: 1fr 96px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+  .sparks .sp:first-child { border-top: 0; padding-top: 4px; }
+  .sparks .nm { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .sparks .meta { text-align: right; }
+  .sparks .meta .cur { font-size: 20px; font-weight: 700; line-height: 1.1; }
+  .sparks .meta .d { font-size: 12px; color: var(--muted); }
+  .sparks .meta .d.up { color: var(--accent); font-weight: 600; }
+  .sparks .meta .d.down { color: var(--danger); font-weight: 600; }
+  .sparks .spl { position: absolute; left: 0; font-size: 10px; color: var(--muted); line-height: 1; pointer-events: none;
+    background: color-mix(in srgb, var(--card) 80%, transparent); padding: 1px 3px; border-radius: 4px; }
+  .mixbar { display: flex; height: 22px; border-radius: 8px; overflow: hidden; gap: 2px; background: var(--input); }
+  .mixbar div { height: 100%; }
+
+  /* Regler */
+  .rsec .rh { font-weight: 700; font-size: 16px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+  .rsec .rh small { color: var(--muted); font-weight: 500; font-size: 13px; }
+  .ritem { display: flex; gap: 10px; width: 100%; text-align: left; padding: 10px 0; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.4; }
+  .ritem::before { content: "•"; color: var(--accent); font-weight: 700; flex: none; }
+  .ritem:active { background: var(--soft); }
+  .redit { border-top: 1px solid var(--line); padding: 10px 0 4px; }
+  .redit textarea { width: 100%; min-height: 72px; border-radius: 12px; background: var(--input); border: 1px solid var(--accent); padding: 10px 12px; font-size: 16px; resize: vertical; }
+  .redit .acts { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px; }
+  .redit .acts .primary { height: 42px; min-width: 100px; padding: 0 18px; font-size: 15px; }
+  .addbtn { width: 100%; text-align: left; padding: 10px 0 2px; color: var(--accent); font-weight: 600; border-top: 1px solid var(--line); }
+
+  /* Övningsinfo */
+  .ex .headbtn, .fin .headbtn { text-align: left; flex: 1; min-width: 0; }
+  .ex .name .pen { color: var(--muted); opacity: .6; margin-left: 8px; vertical-align: -1px; }
+  .infoedit { margin-top: 8px; }
+  .infoedit textarea { width: 100%; min-height: 64px; border-radius: 12px; background: var(--input); border: 1px solid var(--accent); padding: 10px 12px; font-size: 16px; resize: vertical; }
+  .infoedit .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+  .infoedit .acts .primary { height: 40px; min-width: 90px; padding: 0 16px; font-size: 15px; }
+
+  /* Random/Hemma-lista */
+  .hist .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .hist .row:first-child { border-top: 0; }
+  .hist .row .d { font-weight: 600; }
+  .hist .row .wd { color: var(--muted); font-size: 13px; font-weight: 500; margin-left: 6px; }
+  .hist .yr { display: flex; justify-content: space-between; align-items: baseline; color: var(--text); font-size: 18px; font-weight: 700;
+    padding: 18px 0 6px; border-bottom: 2px solid var(--line); margin-top: 6px; }
+  .hist .yr small { color: var(--muted); font-size: 13px; font-weight: 500; }
+  .hist .yr:first-child { margin-top: 0; padding-top: 6px; }
+  .hist .yr + .row { border-top: 0; }
+  .pending { opacity: .6; }
+  .flabel { display: block; color: var(--muted); font-size: 13px; }
+  .chart .lbl.strong { fill: var(--text); }
+  .hist .item .pend { font-size: 11px; color: var(--warn); font-weight: 600; margin-left: 6px; }
+</style>
+</head>
+<body>
+<div id="loading" hidden></div>
+
+<!-- PIN -->
+<section id="pinScreen" hidden>
+  <div class="pinwrap">
+    <h1>Träningslogg</h1>
+    <p>Ange PIN</p>
+    <div class="dots" id="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+    <input id="pinInput" class="pininput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" autofocus>
+    <div class="pinerr" id="pinErr"></div>
+  </div>
+</section>
+
+<!-- HEM -->
+<section id="home" hidden>
+  <div class="wrap">
+    <div class="topbar">
+      <div><h1 id="homeTitle">Träningslogg</h1><div class="sub" id="homeSub"></div></div>
+      <button class="iconbtn" id="refreshBtn" title="Uppdatera">↻</button>
+    </div>
+    <div class="stack">
+      <div class="stats" id="stats"></div>
+      <div class="row2">
+        <button class="quick" id="statsBtn"><div class="t">Statistik</div></button>
+        <button class="quick" id="rulesBtn"><div class="t">Regler &amp; lärdomar</div></button>
+      </div>
+      <button class="passbtn" data-pass="P1">
+        <div><div class="big">PASS 1</div><div class="duesub" id="p1due" hidden>Nästa pass</div></div>
+        <div style="display:flex;align-items:center"><div class="last" id="p1last"></div><span class="chev">›</span></div>
+      </button>
+      <button class="passbtn" data-pass="P2">
+        <div><div class="big">PASS 2</div><div class="duesub" id="p2due" hidden>Nästa pass</div></div>
+        <div style="display:flex;align-items:center"><div class="last" id="p2last"></div><span class="chev">›</span></div>
+      </button>
+      <div class="row2">
+        <button class="quick" data-section="RANDOM"><div class="t">Random på gymmet</div><div class="s" id="randomLast"></div></button>
+        <button class="quick" data-section="HEMMA"><div class="t">Hemmapass</div><div class="s" id="hemmaLast"></div></button>
+      </div>
+    </div>
+    <div class="foot">
+      <a id="sheetLink" href="#" target="_blank" rel="noopener">Öppna Google Sheet</a>
+    </div>
+  </div>
+</section>
+
+<!-- PASS -->
+<section id="pass" hidden>
+  <div class="wrap">
+    <div class="topbar">
+      <div style="font-weight:700;font-size:20px" id="passTitle"></div>
+      <button class="backbtn" id="backBtn">Tillbaka</button>
+    </div>
+    <div class="saverow">
+      <button class="primary" id="saveBtn" data-savebtn="Spara">Spara</button>
+      <div class="summa"><b id="summaVal">–</b><span id="summaSub"></span></div>
+      <input type="date" id="dateInput" class="datepill">
+    </div>
+    <div class="editmode" id="editMode" hidden style="margin-top:8px">Redigerar sparat pass</div>
+    <div class="stack" style="margin-top:12px">
+      <div id="editActions" hidden class="card" style="display:flex;justify-content:flex-end;align-items:center;padding:4px 8px">
+        <button class="ghost" id="newBtn">Nytt pass istället</button>
+      </div>
+      <div id="exList" class="stack"></div>
+      <div class="card fin" id="finCard">
+        <div class="finisher" id="finisher"></div>
+      </div>
+      <div class="card hist">
+        <button class="histhead" id="histToggle" aria-expanded="false" aria-controls="histBody"><span>Historik <span class="cnt" id="histCount"></span></span><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg></button>
+        <div id="histBody" hidden>
+          <div id="hist"></div>
+          <button class="more" id="moreBtn" hidden>Visa fler</button>
+        </div>
+      </div>
+      <!-- Ta bort ligger längst ner på sidan, så att det inte stör när man loggar dagens pass -->
+      <div id="deleteRow" hidden style="display:flex;justify-content:center;padding:4px 0 8px">
+        <button class="danger" id="deleteBtn">Ta bort passet</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATISTIK -->
+<section id="statsView" hidden>
+  <div class="wrap">
+    <div class="topbar">
+      <div style="font-weight:700;font-size:20px">Statistik</div>
+      <button class="backbtn" id="statsBack">Tillbaka</button>
+    </div>
+    <div class="stack">
+      <div class="card">
+        <div class="charthead">
+          <div><div class="ctitle">Utveckling per pass</div></div>
+        </div>
+        <div class="segrow">
+          <div class="seg" id="progMetric"><button data-v="pct" class="on">% vs start</button><button data-v="combo">Snitt vs antal pass</button></div>
+          <div class="seg" id="progRange"><button data-v="all" class="on">Allt</button><button data-v="365">12 mån</button><button data-v="180">6 mån</button><button data-v="90">3 mån</button></div>
+        </div>
+        <div class="chart" id="progChart"></div>
+        <div class="legend" id="progLegend"></div>
+      </div>
+
+      <div class="card">
+        <div class="charthead"><div><div class="ctitle">Pass per månad</div></div></div>
+        <div class="segrow"><div class="seg" id="monthRange"><button data-v="all" class="on">Allt</button><button data-v="24">24 mån</button><button data-v="12">12 mån</button></div></div>
+        <div class="chart" id="monthChart"></div>
+        <div class="stats" id="yearChips" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card">
+        <div class="charthead"><div><div class="ctitle">Pass per vecka</div></div></div>
+        <div class="segrow"><div class="seg" id="weekRange"><button data-v="26" class="on">6 mån</button><button data-v="52">12 mån</button><button data-v="all">Allt</button></div></div>
+        <div class="chart" id="weekChart"></div>
+      </div>
+
+      <div class="card">
+        <div class="charthead">
+          <div><div class="ctitle">Per övning – tyngsta set</div></div>
+        </div>
+        <div class="segrow"><div class="seg" id="exPass"><button data-v="P1" class="on">PASS 1</button><button data-v="P2">PASS 2</button></div></div>
+        <div id="exCharts" class="sparks"></div>
+      </div>
+
+      <div class="card">
+        <div class="charthead"><div><div class="ctitle">Fördelning per år</div><div class="csub" id="mixSub"></div></div></div>
+        <div class="segrow"><div class="seg" id="mixYear"></div></div>
+        <div id="mixBar" class="mixbar"></div>
+        <div class="legend" id="mixLegend"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RANDOM / HEMMA -->
+<section id="secView" hidden>
+  <div class="wrap">
+    <div class="topbar">
+      <div style="font-weight:700;font-size:20px" id="secTitle"></div>
+      <button class="backbtn" id="secBack">Tillbaka</button>
+    </div>
+    <div class="stack">
+      <div class="card">
+        <div style="display:flex;gap:10px;align-items:center;justify-content:flex-start"><input type="date" id="secDate"><button class="primary" id="secSave" data-savebtn="Spara" style="min-width:100px;padding:0 18px;height:44px">Spara</button></div>
+      </div>
+      <div class="card hist">
+        <div style="font-weight:700;margin-bottom:4px">Loggade pass <span style="color:var(--muted);font-weight:500;font-size:14px" id="secCount"></span></div>
+        <div id="secList"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- REGLER -->
+<section id="rulesView" hidden>
+  <div class="wrap">
+    <div class="topbar">
+      <div style="font-weight:700;font-size:20px">Regler &amp; lärdomar</div>
+      <button class="backbtn" id="rulesBack">Tillbaka</button>
+    </div>
+    <div class="stack" id="rulesList"></div>
+  </div>
+</section>
+
+<div id="overlay" hidden></div>
+<div id="busy" hidden>Sparar…</div>
+<div id="toast"></div>
+<div id="tip" class="tip" hidden></div>
+
+<script>
+// ------- Server-värden (fylls i av Apps Script-mallen) -------
+// I den statiska appen (GitHub Pages) fylls värdena i av build-skriptet och PIN kan komma från ?pin= i adressen.
+const PIN_FROM_URL = '<?!= pinFromUrl ?>' || (new URLSearchParams(location.search).get('pin') || '');
+const APP_URL = '<?!= appUrl ?>';
+const SHEET_URL = '<?!= sheetUrl ?>';
+
+// ------- State -------
+let pin = '';
+let model = null;
+let form = null;          // { pass, row, ex:[{mode,sets,text}], showAll }
+let pendingDelete = false;
+const MONTHS = ['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+const $ = (id) => document.getElementById(id);
+
+// ------- Hjälpare -------
+function todayStr() {
+  const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function fmtDate(iso, withYear) {
+  if (!iso) return '';
+  const [y,m,d] = iso.split('-').map(Number);
+  const cur = new Date().getFullYear();
+  return d + ' ' + MONTHS[m-1] + ((withYear || y !== cur) ? ' ' + y : '');
+}
+function daysAgo(iso) {
+  const [y,m,d] = iso.split('-').map(Number);
+  const a = new Date(y, m-1, d), b = new Date(); b.setHours(0,0,0,0);
+  return Math.round((b - a) / 86400000);
+}
+function agoText(iso) {
+  if (!iso) return 'inga pass än';
+  const n = daysAgo(iso);
+  if (n === 0) return 'idag'; if (n === 1) return 'igår'; return n + ' dagar sedan';
+}
+function num(s) { const n = parseFloat(String(s).trim().replace(',', '.')); return isNaN(n) ? null : n; }
+function isNumTok(s) { return /^\d+([.,]\d+)?$/.test(String(s).trim()); }
+function parseCell(cell) {
+  const s = String(cell || '').trim();
+  if (!s) return { mode: 'sets', sets: [] };
+  const toks = s.split(',').map(t => t.trim()).filter(Boolean);
+  // "7.5, 10, 10, 12.5" -> split på komma fungerar eftersom decimal är punkt i sheetet
+  if (toks.length && toks.every(isNumTok)) return { mode: 'sets', sets: toks.map(t => t.replace(',', '.')) };
+  return { mode: 'text', text: s };
+}
+function cellSum(cell) {
+  return String(cell || '').split(',').reduce((a, t) => a + (isNumTok(t) ? num(t) : 0), 0);
+}
+// ---- Reps & volym ----
+// Standardreps (set 1..4, tyngsta sist) per period – samma tabell som i Code.gs. Gäller för datum < until.
+const REPS_PERIODS = [
+  { until: '2025-06-05', pattern: [12, 12, 12, 10] },
+  { until: '2025-07-05', pattern: [12, 10, 10, 10] },
+  { until: '2025-08-09', pattern: [12, 12, 10, 8] },
+  { until: '9999-12-31', pattern: [12, 10, 8, 6] },
+];
+function repsPattern(dateIso) { const d = dateIso || todayStr(); return (REPS_PERIODS.find(p => d < p.until) || REPS_PERIODS[REPS_PERIODS.length - 1]).pattern; }
+function defaultReps(nSets, dateIso) { const pat = repsPattern(dateIso); return Array.from({ length: nSets }, (_, i) => String(pat[Math.min(i, pat.length - 1)])); }
+/** Ett pass är komplett när alla fem övningar har numeriska set. Annars räknas det som pass utan data (ingen volym/%). */
+function isNumericCell(c) { const w = String(c || '').split(',').map(t => t.trim()).filter(Boolean); return w.length > 0 && w.every(isNumTok); }
+function isComplete(sets) { return Array.isArray(sets) && sets.length >= 5 && sets.slice(0, 5).every(isNumericCell); }
+/** Lägger reps-array (samma längd som sets) på ett parsat cellobjekt. */
+function withReps(ex, repsCell, dateIso) {
+  if (ex.mode !== 'sets') return ex;
+  const given = String(repsCell || '').split(',').map(t => t.trim()).filter(Boolean);
+  const n = ex.sets.length || 4;
+  const def = defaultReps(n, dateIso);
+  ex.reps = Array.from({ length: n }, (_, i) => given[i] || (given.length ? given[given.length - 1] : def[i]));
+  return ex;
+}
+/** Volym för en cell: Σ vikt × reps (reps-sträng "12,10,8,6" eller array). */
+// ---------- Viktad volym (12-reps-ekvivalent) – speglar servern ----------
+// Faktor = hur mycket mer vikt man normalt tar vid r reps jämfört med 12 reps (uppmätt sep 2026, fryst).
+// Volym per set = vikt × 12 / faktor(reps). Okänd övning → DEFAULT. Reps mellan punkterna interpoleras, utanför skalas med Epleys kurva.
+const REP_FACTORS_DEFAULT = { 12: 1, 10: 1.385, 8: 1.653, 6: 1.867 };
+const REP_FACTORS = {   // per övnings-ID
+  brostpress:  { 12: 1, 10: 1.39,  8: 1.714, 6: 1.886 },
+  triceps:     { 12: 1, 10: 1.538, 8: 1.875, 6: 1.925 },
+  dip:         { 12: 1, 10: 1.509, 8: 1.697, 6: 1.905 },
+  sidolyft:    { 12: 1, 10: 1.333, 8: 1.5,   6: 1.5 },
+  kabelrodd:   { 12: 1, 10: 1.333, 8: 1.571, 6: 1.743 },
+  axelpress:   { 12: 1, 10: 1.301, 8: 1.568, 6: 1.851 },
+  flyes:       { 12: 1, 10: 1.834, 8: 2.449, 6: 3.077 },
+  hantelpress: { 12: 1, 10: 1.286, 8: 1.571, 6: 1.597 },
+  neddrag:     { 12: 1, 10: 1.236, 8: 1.361, 6: 1.528 },
+  biceps:      { 12: 1, 10: 1.184, 8: 1.429, 6: 1.569 },
+};
+// Ursprungliga namn – används bara för att ge befintliga övningar rätt ID första gången, och som reserv om ID saknas
+const EXERCISE_NAMES = {
+  brostpress: 'Bröstpress i maskin', triceps: 'Triceps pushdowns med rep', dip: 'Dipmaskin', sidolyft: 'Sittande sidolyft med hantlar',
+  kabelrodd: 'Kabelrodd med brett grepp', axelpress: 'Sittande axelpress maskin', flyes: 'Omvända flyes i maskin',
+  hantelpress: 'Lutande hantelpress', neddrag: 'Neddrag stång (latsdrag)', biceps: 'Bicepscurl stång',
+};
+// Övnings-ID (från rubrikraden i sheetet) följer övningen vid omdöpning och omflyttning; namnet är bara reserv
+function factorKey(name) { return splitName(name).name.toLowerCase().replace(/[()]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' '); }
+const ID_BY_NAMEKEY = Object.keys(EXERCISE_NAMES).reduce((o, id) => { o[factorKey(EXERCISE_NAMES[id])] = id; return o; }, {});
+function exRefs(p) { return p.exercises.map((n, i) => (p.exIds && p.exIds[i]) || n); }
+function repFactor(ref, r) {
+  const tab = REP_FACTORS[ref] || REP_FACTORS[ID_BY_NAMEKEY[factorKey(ref)]] || REP_FACTORS_DEFAULT;
+  if (tab[r] != null) return tab[r];
+  const pts = Object.keys(tab).map(Number).sort((a, b) => a - b);
+  const lo = pts[0], hi = pts[pts.length - 1];
+  // utanför 6–12 reps: skala från närmaste kalibrerade punkt med Epleys 1RM-kurva (1 + reps/30)
+  if (r < lo) return tab[lo] * (1 + lo / 30) / (1 + r / 30);
+  if (r > hi) return tab[hi] * (1 + hi / 30) / (1 + r / 30);
+  for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; if (r > a && r < b) return tab[a] + (tab[b] - tab[a]) * (r - a) / (b - a); }
+  return 1;
+}
+function cellVolume(cell, reps, name) {
+  const w = String(cell || '').split(',').map(t => t.trim()).filter(Boolean);
+  if (!w.length || !w.every(isNumTok)) return 0;
+  const r = Array.isArray(reps) ? reps : String(reps || '').split(',');
+  return w.reduce((a, t, i) => { const rk = num(r[i]); return a + (rk ? num(t) * 12 / repFactor(name, rk) : 0); }, 0);
+}
+// ---------- Poäng: alla övningar väger lika mycket ----------
+// Steg 1 (ovan): varje set räknas om till 12-reps-ekvivalent → viktad volym per övning.
+// Steg 2: varje övnings volym delas med samma övnings volym i passets FÖRSTA kompletta pass, så att en övning med
+// låga vikter (t.ex. sidolyft) påverkar lika mycket som en tung (t.ex. dipmaskin).
+// Poäng = S × snittet av kvoterna, där S = första passets viktade totalvolym (startpoängen blir alltså densamma som förut).
+// % = poäng / S − 1 = snittet av övningarnas ökning. Båda siffrorna innehåller alltså båda viktningarna.
+function exVolumes(sets, reps, names) { return sets.map((c, i) => cellVolume(c, (reps || [])[i], names ? names[i] : '')); }
+function passNorm(p) {
+  const base = p.entries.filter(x => x.row > 0 && isComplete(x.sets)).sort((a, b) => a.row - b.row)[0];
+  if (!base) return null;
+  const b = exVolumes(base.sets, base.reps, exRefs(p)), S = b.reduce((a, x) => a + x, 0);
+  return S > 0 ? { b: b.map(x => Math.round(x * 100) / 100), S: Math.round(S * 100) / 100 } : null;
+}
+function scoreOf(sets, reps, p, norm) {
+  if (!isComplete(sets)) return null;
+  const v = exVolumes(sets, reps, p ? exRefs(p) : null);
+  if (norm === undefined) norm = p ? passNorm(p) : null;
+  if (!norm) { const raw = v.reduce((a, x) => a + x, 0); return raw > 0 ? raw : null; }
+  let sum = 0, n = 0;
+  v.forEach((x, i) => { if (norm.b[i] > 0) { sum += x / norm.b[i]; n++; } });
+  return n ? norm.S * sum / n : null;
+}
+/** Poäng för ett pass – null om passet saknar data i någon övning (så att det aldrig drar ner grafer/statistik). */
+function entryVolume(e, p) {
+  const v = scoreOf(e.sets, e.reps, p);
+  return v > 0 ? v : null;
+}
+function fmtVol(v) { return Math.round(v).toLocaleString('sv-SE').replace(/ /g, ' '); }
+function firstVolume(p) { const n = passNorm(p); return n ? n.S : null; }
+function pctStr(v, base) { if (!(base && v > 0)) return ''; const d = Math.round((v / base - 1) * 100) || 0; return (d >= 0 ? '+' : '') + d + '%'; }
+function volPctStr(p, v) { return pctStr(v, firstVolume(p)); }
+/** "+30% · 6 156" – procenten i fetstil. Pass utan data → gråtext. */
+function volLine(p, v, nodataText) { if (!v) return `<span style="opacity:.7">${esc(nodataText || 'utan data')}</span>`; const pc = volPctStr(p, v); return (pc ? `<b>${pc}</b> · ` : '') + fmtVol(v); }
+// Rubrikcell "Namn [info]" → namn + info. Hakparenteser avgränsar, så namnet får innehålla vanliga parenteser.
+function splitName(name) {
+  const m = String(name || '').match(/^(.*?)\s*\[(.*)\]\s*$/);
+  return m ? { name: m[1].trim(), hint: m[2].trim() } : { name: String(name || '').trim(), hint: '' };
+}
+function last(arr) { return arr && arr.length ? arr[arr.length - 1] : null; }
+function latestByDate(entries) {
+  return entries.reduce((best, e) => (!best || e.date > best.date) ? e : best, null);
+}
+function isoWeekKey(iso) {
+  const [y,m,d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m-1, d));
+  const day = dt.getUTCDay() || 7; dt.setUTCDate(dt.getUTCDate() + 4 - day);
+  const y1 = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+  return dt.getUTCFullYear() + '-W' + Math.ceil((((dt - y1) / 86400000) + 1) / 7);
+}
+function toast(msg, isErr) {
+  const t = $('toast'); t.textContent = msg; t.className = 'show' + (isErr ? ' err' : '');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.className = '', isErr ? 4000 : 2200);
+}
+function loading(on) { $('loading').hidden = !on; }
+function show(id) { ['pinScreen','home','pass','statsView','rulesView','secView'].forEach(s => $(s).hidden = (s !== id)); hideTip(); window.scrollTo(0, 0); }
+const WEEKDAYS = ['sön','mån','tis','ons','tors','fre','lör'];
+function weekday(iso) { const [y,m,d] = iso.split('-').map(Number); return WEEKDAYS[new Date(y, m-1, d).getDay()]; }
+function dateLabel(iso) { if (!iso) return ''; const w = weekday(iso); return w.charAt(0).toUpperCase() + w.slice(1) + ' ' + fmtDate(iso, true); }
+function snapshot() { return JSON.stringify(model); }
+function restore(snap) { model = JSON.parse(snap); }
+/** Kör serveranropet i bakgrunden efter att UI:t redan uppdaterats optimistiskt. */
+let pendingSaves = 0;
+function setBusy() {
+  const b = $('busy'); if (!b) return;
+  b.hidden = pendingSaves === 0;
+  document.querySelectorAll('.primary[data-savebtn]').forEach(btn => { btn.disabled = pendingSaves > 0; btn.textContent = pendingSaves > 0 ? 'Sparar…' : btn.dataset.savebtn; });
+}
+function flashSaved() {
+  document.querySelectorAll('.primary[data-savebtn]').forEach(btn => { btn.textContent = 'Sparat ✓'; btn.classList.add('saved'); setTimeout(() => { if (!pendingSaves) { btn.textContent = btn.dataset.savebtn; btn.classList.remove('saved'); } }, 1800); });
+}
+/** Kör serveranropet i bakgrunden efter att UI:t redan uppdaterats optimistiskt. "Sparar…" visas tills servern svarat. */
+function commit(promise, onOk, onFail) {
+  pendingSaves++; setBusy();
+  promise.then(res => { pendingSaves--; setBusy(); if (res && res.model) model = res.model; if (onOk) onOk(res); persistModel(); })
+         .catch(e => { pendingSaves--; setBusy(); toast('Kunde inte spara: ' + e.message, true); if (onFail) onFail(e); });
+}
+/** Tar emot en färsk modell från servern och ritar om den vy som visas – men bara om något ändrats och användaren inte håller på att ändra. */
+function applyModel(fresh) {
+  if (!fresh || pendingSaves > 0) return; // mitt i en sparning: den lokala modellen ligger före servern, rör den inte
+  const changed = JSON.stringify(fresh) !== JSON.stringify(model);
+  model = fresh; persistModel();
+  if (!changed) return;
+  if (!$('pass').hidden && form) { if (form.dirty) return; const cur = form.row && form.row > 0 ? model.passes[form.pass].entries.find(x => x.row === form.row) : model.passes[form.pass].entries.find(x => x.date === form.date); if (cur) { form.row = cur.row; form.origDate = cur.date; } readForm(); renderPass(); }
+  else if (!$('secView').hidden && sec) renderSection();
+  else if (!$('home').hidden) showHome();
+  else if (!$('statsView').hidden) showStats();
+  else if (!$('rulesView').hidden && !rulesEdit) renderRules();
+}
+/** Hämtar om hela modellen tyst (t.ex. efter att en ny rad skjutit ned raderna under). */
+async function refreshSilently() {
+  try { applyModel(await call('getData', pin)); } catch (e) {}
+}
+// Senaste modellen sparas i telefonen: appen visar den direkt vid start och hämtar färskt data i bakgrunden
+function cachedModel() { try { const s = localStorage.getItem('tl_model'); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+function persistModel() { try { if (model) localStorage.setItem('tl_model', JSON.stringify(model)); } catch (e) {} }
+function clearCachedModel() { try { localStorage.removeItem('tl_model'); } catch (e) {} }
+window.addEventListener('pagehide', () => { if (!pendingSaves) persistModel(); });
+
+// ------- Serverbrygga -------
+// Inuti Apps Script används google.script.run. I den statiska appen (GitHub Pages) skickas samma anrop som JSON via fetch till doPost.
+function call(fn, ...args) {
+  if (window.google && google.script && google.script.run) {
+    return new Promise((resolve, reject) => {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(e => reject(e))[fn](...args);
+    });
+  }
+  return callApi(fn, args);
+}
+async function callApi(fn, args) {
+  if (!APP_URL) throw new Error('Ingen kontakt med Apps Script');
+  let res;
+  try {
+    // text/plain → ingen CORS-preflight; Apps Script svarar via en redirect som fetch följer
+    res = await fetch(APP_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, pin: args[0], args: args.slice(1) }) });
+  } catch (e) { throw new Error('Ingen kontakt med servern'); }
+  let j; try { j = await res.json(); } catch (e) { throw new Error('Oväntat svar från servern'); }
+  if (!j || !j.ok) throw new Error((j && j.error) || 'Något gick fel');
+  return j.result;
+}
+async function api(fn, ...args) {
+  loading(true);
+  try { return await call(fn, pin, ...args); }
+  catch (e) {
+    const msg = (e && e.message) ? e.message : String(e);
+    if (/Fel PIN/i.test(msg)) { forgetPin(); showPin('Fel PIN – försök igen'); }
+    throw new Error(msg.replace(/^Error:\s*/, ''));
+  } finally { loading(false); }
+}
+
+// ------- PIN -------
+function storedPin() { try { return localStorage.getItem('tl_pin') || ''; } catch (e) { return ''; } }
+function rememberPin(p) { try { localStorage.setItem('tl_pin', p); } catch (e) {} }
+function forgetPin() { pin = ''; clearCachedModel(); try { localStorage.removeItem('tl_pin'); } catch (e) {} }
+// Bockade övningar (bara visuellt) sparas per pass + datum i localStorage, så de överlever passbyte, statistik-titt och omladdning.
+// Gamla datum rensas bort vid start. Påverkar inte vad som sparas i sheetet.
+let doneState = null;
+function doneFor(key, date) {
+  const today = todayStr();
+  if (!doneState) {
+    doneState = {};
+    try { const s = JSON.parse(localStorage.getItem('tl_done') || '{}'); Object.keys(s).forEach(k => { doneState[k] = s[k]; }); } catch (e) {}
+  }
+  // Bockar från tidigare dagar rensas alltid (även om appen legat öppen över midnatt)
+  let pruned = false; Object.keys(doneState).forEach(k => { if (k.split('|')[1] < today) { delete doneState[k]; pruned = true; } });
+  if (pruned) { try { localStorage.setItem('tl_done', JSON.stringify(doneState)); } catch (e) {} }
+  const k = key + '|' + date;
+  return doneState[k] || (doneState[k] = { ex: [], fin: false });
+}
+function saveDone(key, date, ex, fin) {
+  const d = doneFor(key, date); d.ex = ex.slice(); d.fin = !!fin;
+  try { localStorage.setItem('tl_done', JSON.stringify(doneState)); } catch (e) {}
+}
+function showPin(err) {
+  show('pinScreen'); $('pinErr').textContent = err || ''; $('pinInput').value = ''; renderDots(0);
+  setTimeout(() => $('pinInput').focus(), 50);
+}
+function renderDots(n) { [...$('dots').children].forEach((d, i) => d.classList.toggle('on', i < n)); }
+$('pinInput').addEventListener('input', async (ev) => {
+  const v = ev.target.value.replace(/\D/g, '').slice(0, 4); ev.target.value = v; renderDots(v.length);
+  if (v.length === 4) {
+    loading(true);
+    try { await call('checkPin', v); pin = v; rememberPin(v); $('pinErr').textContent = ''; await loadModel(); showHome(); }
+    catch (e) { $('pinErr').textContent = /Fel PIN/i.test(e.message || '') ? 'Fel PIN' : (e.message || 'Något gick fel'); ev.target.value = ''; renderDots(0); }
+    finally { loading(false); }
+  }
+});
+
+// ------- Data -------
+async function loadModel() { model = await api('getData'); persistModel(); }
+
+// ------- HEM -------
+function showHome() {
+  show('home');
+  const m = model;
+  $('homeTitle').textContent = 'Träningslogg';
+  $('homeSub').textContent = fmtDate(todayStr(), true);
+  const last = {};
+  ['P1','P2'].forEach(k => {
+    const p = m.passes[k], e = latestByDate(p.entries);
+    const v = e ? entryVolume(e, p) : null; last[k] = e ? e.date : '';
+  });
+  // Passet på tur: det som inte kördes senast (vid lika/inga pass → PASS 1)
+  const due = last.P2 && last.P1 >= last.P2 ? 'P2' : 'P1';
+  ['P1','P2'].forEach(k => {
+    const p = m.passes[k], e = latestByDate(p.entries), v = e ? entryVolume(e, p) : null;
+    $(k.toLowerCase() + 'last').innerHTML = e ? ('Senast ' + fmtDate(e.date) + '<br>' + volLine(p, v, 'utan data')) : 'Inga pass än';
+    // Passet som sparats idag får "Idag"; "Nästa pass" flyttar då till det andra passet
+    const doneToday = last[k] === todayStr(), anyToday = last.P1 === todayStr() || last.P2 === todayStr(), lbl = $(k.toLowerCase() + 'due');
+    lbl.hidden = !(doneToday || k === due);
+    lbl.textContent = doneToday ? 'Idag' : 'Nästa pass';
+    lbl.classList.toggle('today', doneToday);
+    lbl.classList.toggle('dim', !doneToday && anyToday);
+  });
+  document.querySelectorAll('.passbtn').forEach(b => b.classList.toggle('due', b.dataset.pass === due));
+  const rl = latestByDate(m.RANDOM), hl = latestByDate(m.HEMMA);
+  $('randomLast').textContent = rl ? 'Senast ' + fmtDate(rl.date) + ' · ' + m.RANDOM.length + ' st' : 'Logga dagens datum';
+  $('hemmaLast').textContent = hl ? 'Senast ' + fmtDate(hl.date) + ' · ' + m.HEMMA.length + ' st' : 'Logga dagens datum';
+
+  // Statistik: pass denna vecka / månad / år (alla typer)
+  const all = [...m.passes.P1.entries, ...m.passes.P2.entries, ...m.RANDOM, ...m.HEMMA].map(e => e.date);
+  const t = todayStr(), wk = isoWeekKey(t), mo = t.slice(0, 7), yr = t.slice(0, 4);
+  const week = all.filter(d => isoWeekKey(d) === wk).length, month = all.filter(d => d.startsWith(mo)).length, year = all.filter(d => d.startsWith(yr)).length;
+  $('stats').innerHTML = `<span class="chip">Vecka: ${week} pass</span><span class="chip">Månad: ${month}</span><span class="chip">${yr}: ${year}</span>`;
+
+  $('sheetLink').href = (m && m.sheetUrl) || SHEET_URL || '#';
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+$('refreshBtn').addEventListener('click', async () => { try { await loadModel(); showHome(); toast('Uppdaterat'); } catch (e) { toast(e.message, true); } });
+document.querySelectorAll('.passbtn').forEach(b => b.addEventListener('click', () => openPass(b.dataset.pass)));
+document.querySelectorAll('.quick[data-section]').forEach(b => b.addEventListener('click', () => openSection(b.dataset.section)));
+
+// ------- Random / Hemma (egen vy med historik + radering) -------
+let sec = null; // { key, pendingDel }
+function secTitle(key) { return key === 'RANDOM' ? 'Random på gymmet' : 'Hemmapass'; }
+function openSection(key) { sec = { key, pendingDel: null }; show('secView'); $('secDate').value = todayStr(); renderSection(); }
+function renderSection() {
+  const list = model[sec.key].slice().sort((a, b) => b.date.localeCompare(a.date));
+  const lastE = list[0];
+  $('secTitle').textContent = secTitle(sec.key);
+  $('secCount').textContent = '(' + list.length + ' st)';
+  let html = '', curYear = null;
+  list.forEach(e => {
+    const y = e.date.slice(0, 4);
+    if (y !== curYear) { curYear = y; const n = list.filter(x => x.date.startsWith(y)).length; html += `<div class="yr"><span>${y}</span><small>${n} pass</small></div>`; }
+    const confirm = sec.pendingDel === e.row;
+    html += `<div class="row ${e.pending ? 'pending' : ''}"><div class="d">${fmtDate(e.date)}</div>
+      ${e.pending ? '<span class="pend">sparar…</span>' : `<button class="danger ${confirm ? 'confirm' : ''}" data-del="${e.row}" style="padding:6px 10px;font-size:14px">${confirm ? 'Bekräfta' : 'Ta bort'}</button>`}</div>`;
+  });
+  $('secList').innerHTML = html || '<div class="center">Inget loggat än</div>';
+  $('secList').querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => deleteSectionEntry(+b.dataset.del)));
+}
+function deleteSectionEntry(row) {
+  if (sec.pendingDel !== row) {
+    sec.pendingDel = row; renderSection();
+    setTimeout(() => { if (sec && sec.pendingDel === row) { sec.pendingDel = null; if (!$('secView').hidden) renderSection(); } }, 4000);
+    return;
+  }
+  const key = sec.key, e = model[key].find(x => x.row === row); if (!e) return;
+  const snap = snapshot();
+  model[key] = model[key].filter(x => x.row !== row); sec.pendingDel = null; renderSection();
+  toast(secTitle(key) + ' ' + fmtDate(e.date) + ' borttaget');
+  commit(api('deleteEntry', key, row, e.date), () => { if (!$('secView').hidden && sec && sec.key === key) renderSection(); },
+    () => { restore(snap); if (!$('secView').hidden) renderSection(); });
+}
+$('secBack').addEventListener('click', showHome);
+$('secSave').addEventListener('click', () => {
+  const d = $('secDate').value; if (!d) return toast('Välj datum', true);
+  const key = sec.key;
+  if (model[key].some(x => x.date === d)) return toast('Datumet finns redan', true);
+  const snap = snapshot();
+  const tempRow = -Date.now();
+  model[key].push({ row: tempRow, date: d, pending: true }); renderSection();
+  commit(api('logDate', key, d), (res) => {
+    const e = model[key].find(x => x.row === tempRow); if (e) { if (res && res.row) e.row = res.row; delete e.pending; }
+    toast(secTitle(key) + ' ' + fmtDate(d) + ' sparat ✓'); flashSaved();
+    if (!$('secView').hidden && sec && sec.key === key) renderSection();
+    refreshSilently(); // raderna under kan ha flyttats ett steg
+  }, () => { restore(snap); if (!$('secView').hidden) renderSection(); });
+});
+
+// ------- PASS -------
+function openPass(key, entry) {
+  const p = model.passes[key];
+  const today = todayStr();
+  const existingToday = entry || p.entries.find(e => e.date === today);
+  const src = existingToday || latestByDate(p.entries);
+  form = {
+    pass: key,
+    row: existingToday ? existingToday.row : null,
+    origDate: existingToday ? existingToday.date : null,
+    date: existingToday ? existingToday.date : today,
+    note: existingToday ? (existingToday.note || '') : '',
+    // Nytt pass: alltid set-rutor (fritext från ett gammalt pass förs inte över). Redigering: visa cellen som den är.
+    ex: (p.exercises.length ? p.exercises : ['','','','','']).map((_, i) => {
+      const parsed = parseCell(src ? src.sets[i] : '');
+      const ex = (!existingToday && parsed.mode !== 'sets') ? { mode: 'sets', sets: [] } : parsed;
+      return withReps(ex, src && ex.mode === 'sets' && parsed.mode === 'sets' ? (src.reps || [])[i] : '', existingToday ? existingToday.date : today);
+    }),
+    baseline: src ? src.sets.slice() : [],
+    baselineReps: src ? (src.reps || []).slice() : [],
+    showAll: form && form.pass === key ? form.showAll : false,
+    histOpen: !!(entry && form && form.pass === key && form.histOpen), // hopfälld när man kommer från hem; kvar öppen när man klickar ett pass i listan
+    infoEdit: null,
+    done: [0, 1, 2, 3, 4].map(i => !!doneFor(key, existingToday ? existingToday.date : today).ex[i]), // bara visuellt: bockade övningar tonas ned, sparas inte i sheetet
+    finDone: !!doneFor(key, existingToday ? existingToday.date : today).fin,
+    dirty: false,
+  };
+  pendingDelete = false; finEdit = false;
+  renderPass();
+  show('pass');
+}
+
+function renderPass() {
+  const p = model.passes[form.pass];
+  $('passTitle').textContent = p.title;
+  $('dateInput').value = form.date;
+  const editing = !!form.row && form.row > 0;
+  // Dagens pass: inget "redigerar"-läge i toppen – bara "Ta bort passet" längst ner. Äldre pass: visa även "Nytt pass istället".
+  const oldDate = editing && form.date !== todayStr();
+  $('editMode').hidden = !oldDate;
+  $('editActions').hidden = !oldDate;
+  $('deleteRow').hidden = !editing;
+  $('deleteBtn').textContent = 'Ta bort passet'; $('deleteBtn').classList.remove('confirm');
+  renderFinisher(p);
+
+  const sorted = p.entries.slice().sort((a, b) => b.date.localeCompare(a.date) || b.row - a.row);
+
+  $('exList').innerHTML = p.exercises.map((name, i) => {
+    const nm = splitName(name);
+    const ex = form.ex[i];
+    if (ex.mode === 'sets' && !ex.sets.length) { ex.sets = ['','','','']; }
+    if (ex.mode === 'sets' && (!ex.reps || ex.reps.length !== ex.sets.length)) withReps(ex, (ex.reps || []).join(','), form.date);
+    const body = ex.mode === 'sets'
+      ? `<div class="sets" data-i="${i}" style="grid-template-columns:repeat(${ex.sets.length || 4}, minmax(0, 1fr))">${ex.sets.map((v, j) =>
+            `<div class="setcol"><input class="set" inputmode="decimal" enterkeyhint="next" data-i="${i}" data-j="${j}" value="${esc(v)}" placeholder="kg">
+             <input class="rep" inputmode="numeric" enterkeyhint="next" data-ri="${i}" data-rj="${j}" value="${esc(ex.reps[j] || '')}" placeholder="reps"></div>`).join('')}</div>`
+      : `<input class="textcell" data-text="${i}" value="${esc(ex.text || '')}" placeholder="fritext, t.ex. 4x annan">`;
+    const info = form.infoEdit === i
+      ? `<div class="infoedit">
+           <label class="flabel">Namn (gäller alla pass, tidigare och kommande)</label>
+           <input class="textcell" style="margin-top:4px" data-infoname="${i}" value="${esc(nm.name)}" placeholder="Övningens namn">
+           <label class="flabel" style="margin-top:8px">Info / notering</label>
+           <textarea data-infotext="${i}" placeholder="t.ex. inställning, vikt att utgå från…">${esc(nm.hint)}</textarea>
+           <div class="acts"><button class="ghost" data-infocancel="${i}">Avbryt</button><button class="primary" data-infosave="${i}">Spara</button></div></div>`
+      : (nm.hint ? `<div class="hint">${esc(nm.hint)}</div>` : '');
+    return `<div class="card ex ${form.done && form.done[i] ? 'done' : ''}" data-i="${i}">
+      <div class="head">
+        <button class="headbtn" data-info="${i}" title="Ändra namn / info"><div class="name">${esc(nm.name) || 'Övning ' + (i+1)}<svg class="pen" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l9.06-9.06.92.92-9.06 9.06zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></div>${form.infoEdit === i ? '' : info}</button>
+        <button class="donebox" data-done="${i}" aria-label="Markera som gjord" aria-pressed="${form.done && form.done[i] ? 'true' : 'false'}"><svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/></svg></button>
+      </div>
+      ${form.infoEdit === i ? info : ''}
+      ${body}
+    </div>`;
+  }).join('');
+
+  // Historik: "+30% · 6 156" (pass utan full data visar vad som skrevs)
+  const limit = form.showAll ? sorted.length : 8;
+  $('histCount').textContent = '(' + sorted.length + ' pass)';
+  $('histBody').hidden = !form.histOpen; $('histToggle').setAttribute('aria-expanded', form.histOpen ? 'true' : 'false');
+  $('hist').innerHTML = sorted.slice(0, limit).map(e => { const v = entryVolume(e, p); return `<button class="item ${e.row === form.row ? 'active' : ''} ${e.pending ? 'pending' : ''}" data-row="${e.row}">
+      <div class="d">${fmtDate(e.date)}${e.pending ? '<span class="pend">sparar…</span>' : ''}</div>
+      <div class="v ${v ? '' : 'nodata'}">${v ? volLine(p, v) : '–'}</div>
+    </button>`; }).join('') || '<div class="center">Inga pass än</div>';
+  $('moreBtn').hidden = sorted.length <= limit;
+
+  bindPassEvents();
+  updateSumma();
+}
+
+function bindPassEvents() {
+  $('exList').querySelectorAll('.set').forEach(inp => {
+    inp.addEventListener('input', () => { form.dirty = true; markChanged(inp); updateSumma(); });
+    inp.addEventListener('focus', () => inp.select());
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); const all = [...document.querySelectorAll('.set,.textcell')]; const k = all.indexOf(inp); if (all[k+1]) all[k+1].focus(); else inp.blur(); }
+    });
+    markChanged(inp);
+  });
+  $('exList').querySelectorAll('.rep').forEach(inp => {
+    inp.addEventListener('input', () => { form.dirty = true; markRepChanged(inp); updateSumma(); });
+    inp.addEventListener('focus', () => inp.select());
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); const all = [...document.querySelectorAll('.rep')]; const k = all.indexOf(inp); if (all[k+1]) all[k+1].focus(); else inp.blur(); }
+    });
+    markRepChanged(inp);
+  });
+  $('exList').querySelectorAll('.textcell').forEach(inp => inp.addEventListener('input', () => { form.dirty = true; updateSumma(); }));
+  // Bocka av övning (bara visuellt – påverkar inte sparningen)
+  $('exList').querySelectorAll('[data-done]').forEach(b => b.addEventListener('click', (ev) => {
+    ev.stopPropagation(); const i = +b.dataset.done; form.done[i] = !form.done[i]; saveDone(form.pass, form.date, form.done, form.finDone);
+    const card = b.closest('.card.ex'); card.classList.toggle('done', form.done[i]); b.setAttribute('aria-pressed', form.done[i] ? 'true' : 'false');
+  }));
+  // Övningsinfo (fritext i rubrikcellens parentes)
+  $('exList').querySelectorAll('[data-info]').forEach(b => b.addEventListener('click', () => {
+    if (Date.now() < suppressClickUntil) return; // släpp efter drag ska inte öppna redigering
+    readForm(); form.infoEdit = +b.dataset.info; renderPass();
+    const ta = $('exList').querySelector('[data-infotext]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  }));
+  $('exList').querySelectorAll('[data-infocancel]').forEach(b => b.addEventListener('click', () => { readForm(); form.infoEdit = null; renderPass(); }));
+  $('exList').querySelectorAll('[data-infosave]').forEach(b => b.addEventListener('click', () => saveExerciseInfo(+b.dataset.infosave)));
+  $('hist').querySelectorAll('.item').forEach(b => b.addEventListener('click', () => {
+    const e = model.passes[form.pass].entries.find(x => x.row === +b.dataset.row); if (e) openPass(form.pass, e);
+  }));
+}
+// ------- Dra och släpp: håll inne ett övningskort och dra det upp/ned för att ändra ordningen (gäller alla pass) -------
+let dragPending = null, drag = null, suppressClickUntil = 0;
+(function initDrag() {
+  const list = $('exList');
+  list.addEventListener('pointerdown', (e) => {
+    if (drag || e.button > 0) return;
+    if (e.target.closest('input, textarea, .infoedit, .donebox')) return;
+    const card = e.target.closest('.card.ex'); if (!card) return;
+    dragPending = { card, x: e.clientX, y: e.clientY, timer: setTimeout(() => startDrag(card, e.clientY), 350) };
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (dragPending && !drag) { if (Math.hypot(e.clientX - dragPending.x, e.clientY - dragPending.y) > 8) cancelPending(); return; }
+    if (!drag) return;
+    e.preventDefault();
+    const dy = e.clientY - drag.startY;
+    drag.card.style.transform = `translateY(${dy}px) scale(1.02)`;
+    const others = [...list.children].filter(c => c !== drag.card);
+    let idx = 0; others.forEach(c => { const r = c.getBoundingClientRect(); if (e.clientY > r.top + r.height / 2) idx++; });
+    if (idx !== drag.curIdx) {
+      const before = drag.card.getBoundingClientRect().top;
+      if (idx >= others.length) list.appendChild(drag.card); else list.insertBefore(drag.card, others[idx]);
+      drag.startY += drag.card.getBoundingClientRect().top - before; // håll kortet stilla under fingret när DOM-platsen byts
+      drag.curIdx = idx;
+    }
+  }, { passive: false });
+  // Stoppa sidscroll medan ett kort dras (måste vara non-passive för att preventDefault ska fungera på iOS)
+  document.addEventListener('touchmove', (e) => { if (drag) e.preventDefault(); }, { passive: false });
+  const end = () => { if (dragPending) cancelPending(); if (drag) finishDrag(); };
+  document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+})();
+function cancelPending() { if (dragPending) { clearTimeout(dragPending.timer); dragPending = null; } }
+function startDrag(card, y) {
+  dragPending = null;
+  if (!form || $('pass').hidden) return;
+  readForm();
+  const list = $('exList');
+  drag = { card, startY: y, curIdx: [...list.children].indexOf(card), order: [...list.children].map(c => +c.dataset.i) };
+  card.classList.add('dragging');
+  if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) {} }
+}
+function finishDrag() {
+  const list = $('exList'), card = drag.card;
+  card.classList.remove('dragging'); card.style.transform = '';
+  const order = [...list.children].map(c => +c.dataset.i);
+  drag = null; suppressClickUntil = Date.now() + 500;
+  if (order.some((v, i) => v !== i)) applyReorder(order);
+}
+/** order[k] = gammalt index för övningen på ny plats k. Uppdaterar modellen optimistiskt och sparar i sheetet. */
+function applyReorder(order) {
+  const key = form.pass, p = model.passes[key];
+  const snap = snapshot();
+  const perm = (arr) => Array.isArray(arr) ? order.map(k => arr[k]) : arr;
+  p.exercises = perm(p.exercises); if (p.exIds && p.exIds.length) p.exIds = perm(p.exIds);
+  p.entries.forEach(e => { e.sets = perm(e.sets); if (e.reps) e.reps = perm(e.reps); });
+  form.ex = perm(form.ex); form.baseline = perm(form.baseline); form.baselineReps = perm(form.baselineReps); form.done = perm(form.done || []); form.infoEdit = null;
+  saveDone(form.pass, form.date, form.done, form.finDone);
+  renderPass(); toast('Ny ordning sparad');
+  commit(api('reorderExercises', key, order), () => { if (!$('pass').hidden && form.pass === key && !form.dirty) { readForm(); renderPass(); } },
+    () => { restore(snap); if (!$('pass').hidden && form.pass === key) { const cur = form.row && form.row > 0 ? model.passes[key].entries.find(x => x.row === form.row) : undefined; openPass(key, cur); } });
+}
+
+function saveExerciseInfo(i) {
+  readForm();
+  const ta = $('exList').querySelector(`[data-infotext="${i}"]`), ni = $('exList').querySelector(`[data-infoname="${i}"]`); if (!ta || !ni) return;
+  const txt = ta.value.replace(/\s*\n+\s*/g, ' ').trim();
+  const name = ni.value.replace(/[\[\]]/g, '').replace(/\s+/g, ' ').trim();
+  if (!name) return toast('Övningen måste ha ett namn', true);
+  const key = form.pass, p = model.passes[key];
+  const snap = snapshot();
+  p.exercises[i] = txt ? name + ' [' + txt + ']' : name;
+  form.infoEdit = null; renderPass(); toast('Övning sparad');
+  commit(api('saveExercise', key, i, name, txt), null, () => { restore(snap); if (!$('pass').hidden && form.pass === key) { readForm(); renderPass(); } });
+}
+// Avslutande-texten (fritext, gäller passet)
+let finEdit = false;
+function renderFinisher(p) {
+  const txt = (p.finisher || '').replace(/^Avslutande:?\s*/i, '');
+  $('finCard').classList.toggle('done', !!(form && form.finDone) && !finEdit);
+  if (finEdit) {
+    $('finisher').innerHTML = `<label class="flabel">Avslutande</label><textarea class="note" id="finText" style="margin-top:4px" placeholder="t.ex. 2x RDL + 2x deadbug">${esc(txt)}</textarea>
+      <div class="acts" style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px"><button class="ghost" id="finCancel">Avbryt</button><button class="primary" id="finSave" style="height:40px;min-width:90px;padding:0 16px;font-size:15px">Spara</button></div>`;
+    $('finCancel').addEventListener('click', () => { finEdit = false; renderFinisher(model.passes[form.pass]); });
+    $('finSave').addEventListener('click', () => {
+      const v = $('finText').value.replace(/\s*\n+\s*/g, ' ').trim(); const key = form.pass; const snap = snapshot();
+      model.passes[key].finisher = 'Avslutande: ' + v; finEdit = false; renderFinisher(model.passes[key]); toast('Avslutande sparat');
+      commit(api('saveFinisher', key, v), null, () => { restore(snap); if (!$('pass').hidden && form.pass === key) renderFinisher(model.passes[key]); });
+    });
+    $('finText').focus();
+  } else {
+    $('finisher').innerHTML = `<div class="head"><button class="headbtn" id="finEditBtn"><b>Avslutande:</b> ${txt ? esc(txt) : '<span style="color:var(--accent)">+ lägg till</span>'} <svg class="pen" style="color:var(--muted);opacity:.6;margin-left:6px;vertical-align:-2px" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l9.06-9.06.92.92-9.06 9.06zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+      <button class="donebox" id="finDoneBtn" aria-label="Markera som gjord" aria-pressed="${form.finDone ? 'true' : 'false'}"><svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/></svg></button></div>`;
+    $('finEditBtn').addEventListener('click', () => { readForm(); finEdit = true; renderFinisher(model.passes[form.pass]); });
+    $('finDoneBtn').addEventListener('click', (ev) => { ev.stopPropagation(); form.finDone = !form.finDone; saveDone(form.pass, form.date, form.done, form.finDone); $('finCard').classList.toggle('done', form.finDone); $('finDoneBtn').setAttribute('aria-pressed', form.finDone ? 'true' : 'false'); });
+  }
+}
+function markChanged(inp) {
+  const base = form.baseline[+inp.dataset.i]; const c = base ? parseCell(base) : null;
+  const orig = c && c.mode === 'sets' ? (c.sets[+inp.dataset.j] || '') : '';
+  inp.classList.toggle('changed', String(inp.value).trim().replace(',', '.') !== orig && String(inp.value).trim() !== '');
+}
+function markRepChanged(inp) {
+  const base = form.baselineReps[+inp.dataset.ri]; const orig = base ? (String(base).split(',')[+inp.dataset.rj] || '').trim() : '';
+  inp.classList.toggle('changed', String(inp.value).trim() !== orig && String(inp.value).trim() !== '');
+}
+function readForm() {
+  form.date = $('dateInput').value || form.date;
+  form.ex.forEach((ex, i) => {
+    if (ex.mode === 'sets') {
+      const els = $('exList').querySelectorAll(`.set[data-i="${i}"]`); if (els.length) ex.sets = [...els].map(x => x.value.trim().replace(',', '.'));
+      const rels = $('exList').querySelectorAll(`.rep[data-ri="${i}"]`); if (rels.length) ex.reps = [...rels].map(x => x.value.trim().replace(/\D/g, ''));
+    }
+    else { const t = $('exList').querySelector(`.textcell[data-text="${i}"]`); ex.text = t ? t.value.trim() : ex.text; }
+  });
+}
+function cellStrings() {
+  return form.ex.map(ex => ex.mode === 'sets' ? ex.sets.filter(Boolean).join(',') : ex.text);
+}
+/** Reps-strängar per övning, bara för set som har en vikt (så att reps hamnar rätt mot vikterna). */
+function repStrings() {
+  return form.ex.map(ex => ex.mode === 'sets' ? ex.sets.map((w, j) => w ? (ex.reps[j] || '') : null).filter(x => x !== null).join(',') : '');
+}
+/** Volym för formuläret – null tills alla fem övningar har numeriska set. */
+function formVolume(cells, reps) { return scoreOf(cells, reps, model.passes[form.pass]); }
+function updateSumma() {
+  readForm();
+  const cells = cellStrings(), reps = repStrings();
+  const p = model.passes[form.pass];
+  const vol = formVolume(cells, reps);
+  const pc = vol ? volPctStr(p, vol) : '';
+  $('summaVal').textContent = vol ? (pc || fmtVol(vol)) : '–';
+  $('summaSub').textContent = vol ? (pc ? fmtVol(vol) : '') : (cells.some(Boolean) ? 'fyll i alla övningar' : '');
+}
+function firstSumma(p) { const e = p.entries.filter(x => x.row > 0).sort((a, b) => a.row - b.row).find(x => num(x.summa) != null); return e ? num(e.summa) : null; }
+function fmtNum(n) { return (Math.round(n * 100) / 100).toString().replace('.', ','); }
+function sheetNum(n) { return String(Math.round(n * 100) / 100); } // samma stil som sheetets visningsvärde (punkt-decimal)
+
+$('backBtn').addEventListener('click', () => { showHome(); });
+$('newBtn').addEventListener('click', () => {
+  readForm(); form.row = null; form.origDate = null; form.date = todayStr(); form.note = '';
+  form.ex = form.ex.map(ex => ex.mode === 'sets' ? ex : withReps({ mode: 'sets', sets: [] }, '', form.date)); // fritextceller blir tomma set-rutor
+  renderPass(); toast('Nytt pass – fälten behålls');
+});
+$('dateInput').addEventListener('change', () => { form.date = $('dateInput').value; form.dirty = true; });
+$('moreBtn').addEventListener('click', () => { readForm(); form.showAll = true; renderPass(); });
+$('histToggle').addEventListener('click', () => { form.histOpen = !form.histOpen; $('histBody').hidden = !form.histOpen; $('histToggle').setAttribute('aria-expanded', form.histOpen ? 'true' : 'false'); });
+
+$('deleteBtn').addEventListener('click', () => {
+  if (!form.row || form.row < 0) return;
+  if (!pendingDelete) { pendingDelete = true; $('deleteBtn').textContent = 'Bekräfta – ta bort'; $('deleteBtn').classList.add('confirm');
+    setTimeout(() => { pendingDelete = false; $('deleteBtn').textContent = 'Ta bort passet'; $('deleteBtn').classList.remove('confirm'); }, 4000); return; }
+  const key = form.pass, row = form.row, p = model.passes[key];
+  const e = p.entries.find(x => x.row === row); if (!e) return;
+  const snap = snapshot();
+  p.entries = p.entries.filter(x => x.row !== row);
+  toast('Passet ' + fmtDate(e.date) + ' borttaget'); openPass(key);
+  commit(api('deleteEntry', key, row, e.date), () => { if (!$('pass').hidden && form.pass === key && !form.dirty) { readForm(); renderPass(); } },
+    () => { restore(snap); if (!$('pass').hidden && form.pass === key) openPass(key, e); });
+});
+
+$('saveBtn').addEventListener('click', () => {
+  readForm();
+  if (!form.date) return toast('Välj datum', true);
+  const cells = cellStrings();
+  if (!cells.some(Boolean)) return toast('Fyll i minst en övning', true);
+  const key = form.pass, p = model.passes[key];
+  const reps = repStrings();
+  const payload = { pass: key, date: form.date, sets: cells, reps: reps, note: form.note, row: form.row, origDate: form.origDate, names: exRefs(p) }; // övnings-ID:n styr repsfaktorerna i volymen
+  const snap = snapshot();
+
+  // Optimistisk uppdatering: räkna Summa/%/volym lokalt precis som sheetets formler
+  const total = cells.reduce((a, c) => a + cellSum(c), 0);
+  const first = firstSumma(p);
+  const complete = isComplete(cells);
+  const summa = complete ? sheetNum(total) : '';
+  const pct = complete && first ? Math.round((total / first - 1) * 100) + '%' : '';
+  const volume = formVolume(cells, reps);
+  let entry = (form.row && form.row > 0) ? p.entries.find(x => x.row === form.row) : null;
+  if (!entry) entry = p.entries.find(x => x.date === form.date);
+  const isNew = !entry;
+  if (isNew) { entry = { row: -Date.now(), pending: true }; p.entries.push(entry); }
+  Object.assign(entry, { date: form.date, sets: cells, reps: reps, volume: volume, complete: complete, repsSaved: true, summa, pct, note: form.note || '' });
+  payload.norm = passNorm(p); // normeringen (första passets volym per övning) – servern räknar samma poäng utan att scanna sheetet
+  const pc = volume ? volPctStr(p, volume) : '';
+  const tempRow = entry.row;
+  openPass(key, entry);
+
+  commit(api('saveSession', payload), (res) => {
+    // Servern har svarat: uppdatera raden med serverns radnummer/formelvärden och bekräfta
+    const e = model.passes[key].entries.find(x => x.row === tempRow) || model.passes[key].entries.find(x => x.date === payload.date);
+    if (e && res && res.saved) Object.assign(e, res.saved); else if (e && res && res.row) e.row = res.row;
+    if (e) delete e.pending;
+    toast((isNew ? 'Sparat ✓ ' : 'Uppdaterat ✓ ') + fmtDate(payload.date) + (volume ? ' · ' + (pc ? pc + ' · ' : '') + fmtVol(volume) : '')); flashSaved();
+    if (!$('pass').hidden && form.pass === key) {
+      if (e) { form.row = e.row; form.origDate = e.date; }
+      if (!form.dirty) { readForm(); renderPass(); }
+    }
+    if (res && res.isNew) refreshSilently(); // ny rad skjuter ned raderna under – hämta rätt radnummer i bakgrunden
+  }, () => {
+    restore(snap);
+    if (!$('pass').hidden && form.pass === key) {
+      openPass(key, payload.row && payload.row > 0 ? model.passes[key].entries.find(x => x.row === payload.row) : undefined);
+      form.date = payload.date; form.ex = cells.map((c, i) => withReps(parseCell(c), reps[i], payload.date)); form.row = payload.row; form.origDate = payload.origDate; renderPass();
+    }
+  });
+});
+
+// ======================= STATISTIK =======================
+const statsState = { metric: 'pct', range: 'all', exPass: 'P1', monthRange: 'all', weekRange: '26', mixYear: todayStr().slice(0, 4) };
+const SER = { P1: { label: 'PASS 1', color: 'var(--s1)' }, P2: { label: 'PASS 2', color: 'var(--s2)' }, RANDOM: { label: 'Random gym', color: 'var(--s3)' }, HEMMA: { label: 'Hemmapass', color: 'var(--s4)' } };
+
+function dateMs(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).getTime(); }
+function cellMax(cell) { const t = String(cell || '').split(',').map(x => x.trim()).filter(isNumTok).map(num); return t.length ? Math.max(...t) : null; }
+function allDates() { return [...model.passes.P1.entries, ...model.passes.P2.entries, ...model.RANDOM, ...model.HEMMA].map(e => e.date); }
+function mondayOf(iso) { const d = new Date(dateMs(iso)); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); d.setHours(0,0,0,0); return d; }
+function isoOf(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function weekNo(iso) { return Number(isoWeekKey(iso).split('W')[1]); }
+function rangeStartMs() { const r = statsState.range; if (r === 'all') return -Infinity; const d = new Date(); d.setDate(d.getDate() - Number(r)); return d.getTime(); }
+function hideTip() { $('tip').hidden = true; }
+function showTip(html, x, y) {
+  const t = $('tip'); t.innerHTML = html; t.hidden = false;
+  const w = t.offsetWidth, h = t.offsetHeight, vw = window.innerWidth;
+  let left = x + 12; if (left + w > vw - 8) left = x - w - 12; if (left < 8) left = 8;
+  t.style.left = left + 'px'; t.style.top = Math.max(8, y - h - 12) + 'px';
+}
+function niceTicks(min, max, n) {
+  if (min === max) { max = min + 1; }
+  const span = max - min, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(k => k * mag).find(s => span / s <= n) || 10 * mag;
+  const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step, ticks = [];
+  for (let v = lo; v <= hi + 1e-9; v += step) ticks.push(Math.round(v * 1000) / 1000);
+  return { lo, hi, ticks };
+}
+function fmtVal(v, metric) { return metric === 'pct' ? (v >= 0 ? '+' : '') + Math.round(v) + '%' : metric === 'volume' ? fmtVol(v) : fmtNum(v); }
+
+function showStats() {
+  show('statsView');
+  renderProgress(); renderMonths(); renderWeeks(); renderExercises(); renderMix();
+}
+
+function progressSeries() {
+  const from = rangeStartMs(), metric = statsState.metric;
+  return ['P1', 'P2'].map(k => {
+    const p = model.passes[k];
+    const firstV = firstVolume(p);
+    const pts = p.entries.map(e => {
+      const v = entryVolume(e, p), s = num(e.summa);
+      let y = null;
+      if (metric === 'pct') y = (v > 0 && firstV) ? (v / firstV - 1) * 100 : null;
+      else if (metric === 'volume') y = v > 0 ? v : null;
+      else y = s;
+      return y == null ? null : { x: dateMs(e.date), y, date: e.date };
+    }).filter(pt => pt && pt.x >= from).sort((a, b) => a.x - b.x);
+    return { key: k, label: SER[k].label, color: SER[k].color, points: pts };
+  });
+}
+
+function renderProgress() {
+  if (statsState.metric === 'combo') return renderCombo();
+  const series = progressSeries();
+  const metric = statsState.metric;
+  // % vs start: fast skala −50 … +75 % (utökas bara om något pass hamnar utanför) så att upp/ned syns lika tydligt oavsett spann
+  drawLineChart($('progChart'), series, { fmt: v => fmtVal(v, metric), includeZero: metric === 'pct', fixed: metric === 'pct' ? { lo: -50, hi: 75, step: 25 } : null });
+  $('progLegend').innerHTML = series.map(s => `<span style="--c:${s.color}">${s.label}</span>`).join('');
+}
+
+// Snitt vs antal pass: staplar = alla pass per månad, linje = snitt av PASS 1 och PASS 2 (% vs start) samma månad.
+// Varje pass väger lika: först snitt per pass och månad, sedan snittet av de två.
+function comboMonths() {
+  const dates = allDates(), now = new Date(), r = statsState.range, out = [];
+  let n;
+  if (r === 'all') { const first = dates.length ? dates.reduce((a, b) => a < b ? a : b) : todayStr(); const [fy, fm] = first.split('-').map(Number); n = (now.getFullYear() - fy) * 12 + (now.getMonth() + 1 - fm) + 1; }
+  else n = Math.round(Number(r) / 30.4);
+  n = Math.max(1, Math.min(n, 120));
+  const pm = {}; // { 'YYYY-MM': { P1: [..], P2: [..] } }
+  ['P1', 'P2'].forEach(k => { const p = model.passes[k], f = firstVolume(p); if (!f) return;
+    p.entries.forEach(e => { const v = entryVolume(e, p); if (!(v > 0)) return; const m = e.date.slice(0, 7); ((pm[m] = pm[m] || { P1: [], P2: [] })[k]).push((v / f - 1) * 100); }); });
+  const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1), key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const c = dates.filter(x => x.startsWith(key)).length, a1 = mean((pm[key] || {}).P1 || []), a2 = mean((pm[key] || {}).P2 || []);
+    const parts = [a1, a2].filter(x => x != null);
+    out.push({ key, d, count: c, avg: parts.length ? mean(parts) : null, a1, a2, cur: i === 0 });
+  }
+  return out;
+}
+function renderCombo() {
+  const months = comboMonths(), c = $('progChart');
+  if (!months.some(m => m.count || m.avg != null)) { c.innerHTML = '<div class="center" style="width:100%">Ingen data i valt spann</div>'; $('progLegend').innerHTML = ''; return; }
+  const W = Math.max(280, c.clientWidth || 340), H = 340, ml = 46, mr = 26, mt = 14, mb = 26, n = months.length;
+  const avgs = months.filter(m => m.avg != null).map(m => m.avg);
+  let lo = -50, hi = 75; const st = 25; avgs.forEach(v => { while (v < lo) lo -= st; while (v > hi) hi += st; });
+  const yt = []; for (let v = lo; v <= hi + 1e-9; v += st) yt.push(v);
+  const cmax = Math.max(1, ...months.map(m => m.count)), ct = niceTicks(0, cmax, 4);
+  const iw = (W - ml - mr) / n, bw = Math.max(1.5, iw - Math.min(8, iw * 0.3));
+  const Y = v => mt + (hi - v) / (hi - lo) * (H - mt - mb), YC = v => mt + (ct.hi - v) / (ct.hi || 1) * (H - mt - mb), XC = i => ml + i * iw + iw / 2;
+  const fp = v => (v >= 0 ? '+' : '') + Math.round(v) + '%';
+  let g = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+  g += '<g class="grid">' + yt.map(t => `<line x1="${ml}" x2="${W - mr}" y1="${Y(t)}" y2="${Y(t)}"${t === 0 ? ' style="stroke:var(--muted)"' : ''}/><text x="${ml - 6}" y="${Y(t) + 4}" text-anchor="end">${fp(t)}</text>`).join('') + '</g>';
+  g += '<g class="grid">' + ct.ticks.filter(t => t > 0).map(t => `<text x="${W - mr + 5}" y="${YC(t) + 4}" text-anchor="start">${t}</text>`).join('') + '</g>';
+  months.forEach((m, i) => {
+    const x = ml + i * iw + (iw - bw) / 2, top = YC(m.count), h = Math.max(0, YC(0) - top), r = Math.min(4, h, bw / 2);
+    if (h > 0) g += `<path class="bar" d="M${x} ${YC(0)} V${top + r} Q${x} ${top} ${x + r} ${top} H${x + bw - r} Q${x + bw} ${top} ${x + bw} ${top + r} V${YC(0)} Z" fill="var(--bar)"/>`;
+    const mo = m.d.getMonth(), label = n <= 12 ? MONTHS[mo] : (mo === 0 ? String(m.d.getFullYear()) : (mo % 3 === 0 && n <= 36 ? MONTHS[mo] : ''));
+    if (label) g += `<text class="${mo === 0 && n > 12 ? 'lbl strong' : ''}" x="${XC(i)}" y="${H - 8}" text-anchor="middle">${label}</text>`;
+  });
+  const lp = months.map((m, i) => m.avg == null ? null : { x: XC(i), y: Y(m.avg), v: m.avg }).filter(Boolean);
+  if (lp.length) {
+    g += `<path class="ser" d="${lp.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ')}" stroke="var(--text)" style="stroke-width:${iw > 8 ? 2 : 1.5}"/>`;
+    const rr = iw > 14 ? 3 : iw > 8 ? 2.4 : 1.9;
+    g += lp.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${rr}" fill="var(--text)"/>`).join('');
+    const last = lp[lp.length - 1]; g += `<text class="lbl" x="${Math.min(last.x + 8, W - mr - 30)}" y="${last.y - 8}">${fp(last.v)}</text>`;
+  }
+  months.forEach((m, i) => { g += `<rect x="${ml + i * iw}" y="${mt}" width="${iw}" height="${H - mt - mb}" fill="transparent" data-i="${i}"/>`; });
+  g += '</svg>'; c.innerHTML = g;
+  c.querySelectorAll('rect[data-i]').forEach(rc => {
+    const m = months[+rc.dataset.i];
+    const f = (ev) => showTip(`<b>${MONTHS[m.d.getMonth()]} ${m.d.getFullYear()}</b><div class="r"><span><i style="--c:var(--bar)"></i>Antal pass</span><b>${m.count}</b></div>` +
+      `<div class="r"><span><i style="--c:var(--text)"></i>Snitt P1+P2</span><b>${m.avg == null ? '–' : fp(m.avg)}</b></div>` +
+      (m.a1 != null ? `<div class="r"><span><i style="--c:${SER.P1.color}"></i>PASS 1</span><b>${fp(m.a1)}</b></div>` : '') +
+      (m.a2 != null ? `<div class="r"><span><i style="--c:${SER.P2.color}"></i>PASS 2</span><b>${fp(m.a2)}</b></div>` : ''), ev.clientX, ev.clientY);
+    rc.addEventListener('pointermove', f); rc.addEventListener('pointerdown', f); rc.addEventListener('pointerleave', hideTip);
+  });
+  $('progLegend').innerHTML = `<span style="--c:var(--bar)">Pass per månad (höger axel)</span><span style="--c:var(--text)">Snitt PASS 1 + 2, % vs start</span>`;
+}
+
+function drawLineChart(container, series, opts) {
+  const W = Math.max(280, container.clientWidth || 340), H = 340, ml = 46, mr = 16, mt = 14, mb = 26;
+  const pts = series.flatMap(s => s.points);
+  if (!pts.length) { container.innerHTML = '<div class="center" style="width:100%">Ingen data i valt spann</div>'; return; }
+  let xmin = Math.min(...pts.map(p => p.x)), xmax = Math.max(...pts.map(p => p.x)); if (xmin === xmax) { xmin -= 864e5 * 7; xmax += 864e5 * 7; }
+  xmax += (xmax - xmin) * 0.03; // lite luft för sista punkten
+  let ymin = Math.min(...pts.map(p => p.y)), ymax = Math.max(...pts.map(p => p.y));
+  if (opts.includeZero) { ymin = Math.min(0, ymin); ymax = Math.max(0, ymax); }
+  let nt;
+  if (opts.fixed) {
+    let lo = opts.fixed.lo, hi = opts.fixed.hi; const st = opts.fixed.step;
+    while (ymin < lo) lo -= st; while (ymax > hi) hi += st;
+    const ticks = []; for (let v = lo; v <= hi + 1e-9; v += st) ticks.push(v);
+    nt = { lo, hi, ticks };
+  } else {
+    const pad = (ymax - ymin) * 0.06 || 1; nt = niceTicks(ymin - pad, ymax + pad, 6);
+  }
+  const X = x => ml + (x - xmin) / (xmax - xmin) * (W - ml - mr), Y = y => mt + (nt.hi - y) / (nt.hi - nt.lo) * (H - mt - mb);
+  let g = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+  g += '<g class="grid">' + nt.ticks.map(t => `<line x1="${ml}" x2="${W - mr}" y1="${Y(t)}" y2="${Y(t)}"${t === 0 && opts.includeZero ? ' style="stroke:var(--muted)"' : ''}/><text x="${ml - 6}" y="${Y(t) + 4}" text-anchor="end">${opts.fmt(t)}</text>`).join('') + '</g>';
+  // x-ticks: kvartal; etikett vid årsskifte + juli (månadsvis vid korta spann)
+  const d0 = new Date(xmin), d1 = new Date(xmax); const ticks = [];
+  for (let y = d0.getFullYear(); y <= d1.getFullYear(); y++) for (let m = 0; m < 12; m += 3) { const t = new Date(y, m, 1).getTime(); if (t >= xmin && t <= xmax) ticks.push({ t, y, m }); }
+  const spanDays = (xmax - xmin) / 864e5;
+  if (spanDays < 200) { ticks.length = 0; for (let y = d0.getFullYear(); y <= d1.getFullYear(); y++) for (let m = 0; m < 12; m++) { const t = new Date(y, m, 1).getTime(); if (t >= xmin && t <= xmax) ticks.push({ t, y, m, monthly: true }); } }
+  g += '<g class="axis">' + ticks.map(tk => `<line x1="${X(tk.t)}" x2="${X(tk.t)}" y1="${H - mb}" y2="${H - mb + 4}"/>` +
+    ((tk.monthly || tk.m === 0 || tk.m === 6) ? `<text x="${X(tk.t)}" y="${H - mb + 16}" text-anchor="middle">${tk.m === 0 ? tk.y : (tk.monthly ? MONTHS[tk.m] : 'jul')}</text>` : '')).join('') + '</g>';
+  // Punktstorlek efter täthet: små, kantlösa punkter så att täta pass ändå kan räknas
+  const maxN = Math.max(...series.map(s => s.points.length));
+  const pxPer = (W - ml - mr) / Math.max(1, maxN);
+  const r = pxPer > 14 ? 3 : pxPer > 8 ? 2.4 : 1.9;
+  series.forEach(s => {
+    if (!s.points.length) return;
+    const d = s.points.map((p, i) => (i ? 'L' : 'M') + X(p.x).toFixed(1) + ' ' + Y(p.y).toFixed(1)).join(' ');
+    const lp = s.points[s.points.length - 1];
+    g += `<path class="ser" d="${d}" stroke="${s.color}" style="stroke-width:${pxPer > 8 ? 1.8 : 1.4}"/>`;
+    g += s.points.slice(0, -1).map(p => `<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="${r}" fill="${s.color}"/>`).join('');
+    g += `<circle cx="${X(lp.x)}" cy="${Y(lp.y)}" r="${r + 1.5}" fill="${s.color}"/>`;
+    g += `<text class="lbl" x="${Math.min(X(lp.x) + 8, W - 44)}" y="${Y(lp.y) - 8}">${opts.fmt(lp.y)}</text>`;
+  });
+  g += `<line class="xh" id="xh" x1="0" x2="0" y1="${mt}" y2="${H - mb}" visibility="hidden"/>`;
+  g += `<rect x="${ml}" y="${mt}" width="${W - ml - mr}" height="${H - mt - mb}" fill="transparent" id="hit"/></svg>`;
+  container.innerHTML = g;
+  const svg = container.querySelector('svg'), xh = svg.querySelector('#xh'), hit = svg.querySelector('#hit');
+  const move = (ev) => {
+    const rc = svg.getBoundingClientRect(); const px = (ev.clientX - rc.left) * (W / rc.width);
+    const xv = xmin + (px - ml) / (W - ml - mr) * (xmax - xmin);
+    let best = null;
+    series.forEach(s => s.points.forEach(p => { const dd = Math.abs(p.x - xv); if (!best || dd < best.dd) best = { dd, p }; }));
+    if (!best) return;
+    const rows = series.map(s => { const p = s.points.reduce((a, q) => Math.abs(q.x - best.p.x) < 864e5 * 4 && (!a || Math.abs(q.x - best.p.x) < Math.abs(a.x - best.p.x)) ? q : a, null);
+      return p ? `<div class="r"><span><i style="--c:${s.color}"></i>${s.label}</span><b>${opts.fmt(p.y)}</b></div>` : ''; }).join('');
+    xh.setAttribute('x1', X(best.p.x)); xh.setAttribute('x2', X(best.p.x)); xh.setAttribute('visibility', 'visible');
+    showTip(`<b>${fmtDate(best.p.date, true)}</b>${rows}`, ev.clientX, ev.clientY);
+  };
+  hit.addEventListener('pointermove', move); hit.addEventListener('pointerdown', move);
+  hit.addEventListener('pointerleave', () => { xh.setAttribute('visibility', 'hidden'); hideTip(); });
+}
+
+function renderExercises() {
+  const p = model.passes[statsState.exPass];
+  const sorted = p.entries.slice().sort((a, b) => a.date.localeCompare(b.date));
+  $('exCharts').innerHTML = p.exercises.map((name, i) => {
+    const all = sorted.map(e => ({ date: e.date, x: dateMs(e.date), y: cellMax(e.sets[i]) })).filter(q => q.y != null);
+    const pts = all;
+    const pr = all.reduce((a, q) => (!a || q.y > a.y) ? q : a, null);
+    const cur = pts.length ? pts[pts.length - 1] : null, first = pts.length ? pts[0] : null;
+    const delta = cur && first ? cur.y - first.y : null;
+    const nm = splitName(name).name || 'Övning ' + (i + 1);
+    return `<div class="sp"><div><div class="nm">${esc(nm)}</div>${sparkline(pts)}</div>
+      <div class="meta"><div class="cur">${cur ? fmtNum(cur.y) + '<small style="font-size:12px;color:var(--muted)"> kg</small>' : '–'}</div>
+        <div class="d ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}">${delta == null ? '' : (delta >= 0 ? '+' : '') + fmtNum(delta) + ' sedan start'}</div>
+        <div class="d">${pr ? 'PR ' + fmtNum(pr.y) + ' · ' + fmtDate(pr.date) : ''}</div></div></div>`;
+  }).join('');
+}
+function sparkline(pts) {
+  const W = 220, H = 88;
+  if (pts.length < 2) return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}"><text x="0" y="${H / 2 + 4}">${pts.length ? 'Bara ett pass i spannet' : 'Ingen numerisk data'}</text></svg>`;
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y), xmin = Math.min(...xs), xmax = Math.max(...xs), ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const X = x => 2 + (x - xmin) / ((xmax - xmin) || 1) * (W - 8), Y = y => 8 + (ymax - y) / ((ymax - ymin) || 1) * (H - 18);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + X(p.x).toFixed(1) + ' ' + Y(p.y).toFixed(1)).join(' ');
+  const lp = pts[pts.length - 1];
+  // min/max-etiketter (utanför svg:n så att texten inte sträcks) så att skalan går att läsa av
+  const lbl = ymax !== ymin ? `<span class="spl" style="top:0">${fmtNum(ymax)}</span><span class="spl" style="bottom:0">${fmtNum(ymin)}</span>` : '';
+  return `<div style="position:relative"><svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/><circle cx="${X(lp.x)}" cy="${Y(lp.y)}" r="3.5" fill="var(--s1)" stroke="var(--card)" stroke-width="2"/></svg>${lbl}</div>`;
+}
+
+function renderWeeks() {
+  const dates = allDates(), t = todayStr(), bars = [];
+  const end = mondayOf(t);
+  let n = statsState.weekRange === 'all' ? 0 : Number(statsState.weekRange);
+  if (!n) { const first = dates.length ? dates.reduce((a, b) => a < b ? a : b) : t; n = Math.round((end - mondayOf(first)) / (7 * 864e5)) + 1; }
+  n = Math.max(1, Math.min(n, 520));
+  const mon = new Date(end); mon.setDate(mon.getDate() - 7 * (n - 1));
+  // Etiketter: ≤26 v -> varannan vecka, ≤52 -> var fjärde, annars bara årtal vid vecka 1
+  const every = n <= 26 ? 2 : n <= 52 ? 4 : 0;
+  for (let i = 0; i < n; i++) {
+    const iso = isoOf(mon), wk = isoWeekKey(iso), no = weekNo(iso); const cnt = dates.filter(d => isoWeekKey(d) === wk).length;
+    const yearLbl = no === 1 ? String(mon.getFullYear()) : '';
+    bars.push({ label: every ? (yearLbl || 'v' + no) : yearLbl, strong: !!yearLbl, value: cnt, cur: i === n - 1, tip: `Vecka ${no} (${fmtDate(iso, true)}) · ${cnt} pass` });
+    mon.setDate(mon.getDate() + 7);
+  }
+  drawBarChart($('weekChart'), bars, { every: every || 1, H: 230 });
+}
+function renderMonths() {
+  const dates = allDates(), now = new Date(), bars = [];
+  let n = statsState.monthRange === 'all' ? 0 : Number(statsState.monthRange);
+  if (!n) { const first = dates.length ? dates.reduce((a, b) => a < b ? a : b) : todayStr(); const [fy, fm] = first.split('-').map(Number); n = (now.getFullYear() - fy) * 12 + (now.getMonth() + 1 - fm) + 1; }
+  n = Math.max(1, Math.min(n, 120));
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1); const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const c = dates.filter(x => x.startsWith(key)).length;
+    // Etiketter: ≤12 mån -> varje månad; annars var tredje månad, med årtal i januari
+    const label = n <= 12 ? MONTHS[d.getMonth()] : (d.getMonth() === 0 ? String(d.getFullYear()) : (d.getMonth() % 3 === 0 ? MONTHS[d.getMonth()] : ''));
+    bars.push({ label, value: c, cur: i === 0, tip: `${MONTHS[d.getMonth()]} ${d.getFullYear()} · ${c} pass`, strong: d.getMonth() === 0 });
+  }
+  drawBarChart($('monthChart'), bars, { every: 1, H: 230 });
+  const years = {}; dates.forEach(d => { const y = d.slice(0, 4); years[y] = (years[y] || 0) + 1; });
+  $('yearChips').innerHTML = Object.keys(years).sort().map(y => `<span class="chip">${y}: ${years[y]} pass</span>`).join('');
+}
+function drawBarChart(container, bars, opts) {
+  const W = Math.max(280, container.clientWidth || 340), H = opts.H || 200, ml = 22, mr = 6, mt = 14, mb = 22;
+  const max = Math.max(1, ...bars.map(b => b.value)); const nt = niceTicks(0, max, 3);
+  const iw = (W - ml - mr) / bars.length, bw = Math.max(1.5, iw - Math.min(8, iw * 0.3));
+  const Y = v => mt + (nt.hi - v) / (nt.hi || 1) * (H - mt - mb), y0 = Y(0);
+  let g = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+  g += '<g class="grid">' + nt.ticks.filter(t => t > 0).map(t => `<line x1="${ml}" x2="${W - mr}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${ml - 5}" y="${Y(t) + 4}" text-anchor="end">${t}</text>`).join('') + '</g>';
+  g += `<g class="axis"><line x1="${ml}" x2="${W - mr}" y1="${y0}" y2="${y0}"/></g>`;
+  const maxIdx = bars.reduce((a, b, i) => b.value > bars[a].value ? i : a, 0);
+  bars.forEach((b, i) => {
+    const x = ml + i * iw + (iw - bw) / 2, top = Y(b.value), h = Math.max(0, y0 - top), r = Math.min(4, h, bw / 2);
+    const d = h > 0 ? `M${x} ${y0} V${top + r} Q${x} ${top} ${x + r} ${top} H${x + bw - r} Q${x + bw} ${top} ${x + bw} ${top + r} V${y0} Z` : '';
+    g += `<path class="bar" d="${d}" fill="${b.cur ? 'var(--s1)' : 'var(--bar)'}"/>`;
+    if ((b.cur || i === maxIdx) && b.value > 0 && iw >= 6) g += `<text class="lbl" x="${x + bw / 2}" y="${top - 4}" text-anchor="middle">${b.value}</text>`;
+    if (b.label && (b.strong || i % opts.every === (bars.length - 1) % opts.every)) g += `<text class="${b.strong ? 'lbl strong' : ''}" x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${b.label}</text>`;
+    g += `<rect x="${ml + i * iw}" y="${mt}" width="${iw}" height="${H - mt - mb}" fill="transparent" data-i="${i}"/>`;
+  });
+  g += '</svg>'; container.innerHTML = g;
+  container.querySelectorAll('rect[data-i]').forEach(r => {
+    const b = bars[+r.dataset.i];
+    const f = (ev) => showTip(`<b>${b.tip}</b>`, ev.clientX, ev.clientY);
+    r.addEventListener('pointermove', f); r.addEventListener('pointerdown', f); r.addEventListener('pointerleave', hideTip);
+  });
+}
+function renderMix() {
+  const years = [...new Set(allDates().map(d => d.slice(0, 4)))].sort();
+  if (!years.length) years.push(todayStr().slice(0, 4));
+  if (!years.includes(statsState.mixYear)) statsState.mixYear = years[years.length - 1];
+  $('mixYear').innerHTML = years.map(y => `<button data-v="${y}" class="${y === statsState.mixYear ? 'on' : ''}">${y}</button>`).join('');
+  const y = statsState.mixYear;
+  // PASS 1 + PASS 2 räknas som en gemensam stapel (gympass), Random och Hemma var för sig
+  const parts = [['GYM', [...model.passes.P1.entries, ...model.passes.P2.entries], 'Gym', SER.P1.color], ['RANDOM', model.RANDOM, SER.RANDOM.label, SER.RANDOM.color], ['HEMMA', model.HEMMA, SER.HEMMA.label, SER.HEMMA.color]]
+    .map(([k, list, label, color]) => ({ k, label, color, n: list.filter(e => e.date.startsWith(y)).length }));
+  const tot = parts.reduce((a, p) => a + p.n, 0);
+  $('mixBar').innerHTML = parts.filter(p => p.n).map(p => `<div style="width:${(p.n / (tot || 1) * 100).toFixed(1)}%;background:${p.color}" title="${p.label}: ${p.n}"></div>`).join('');
+  $('mixLegend').innerHTML = parts.map(p => `<span style="--c:${p.color}">${p.label} ${p.n}${tot ? ' (' + Math.round(p.n / tot * 100) + '%)' : ''}</span>`).join('');
+  const isCur = y === todayStr().slice(0, 4);
+  const weeksSoFar = isCur ? Math.max(1, Math.ceil((new Date() - new Date(Number(y), 0, 1)) / (7 * 864e5))) : 52;
+  $('mixSub').textContent = `${tot} pass ${isCur ? 'hittills ' : ''}${y} · ${(tot / weeksSoFar).toFixed(1).replace('.', ',')} pass/vecka`;
+}
+
+document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  if (seg.id === 'progMetric') { statsState.metric = b.dataset.v; renderProgress(); }
+  if (seg.id === 'progRange') { statsState.range = b.dataset.v; renderProgress(); }
+  if (seg.id === 'exPass') { statsState.exPass = b.dataset.v; renderExercises(); }
+  if (seg.id === 'monthRange') { statsState.monthRange = b.dataset.v; renderMonths(); }
+  if (seg.id === 'weekRange') { statsState.weekRange = b.dataset.v; renderWeeks(); }
+  if (seg.id === 'mixYear') { statsState.mixYear = b.dataset.v; renderMix(); }
+}));
+$('statsBtn').addEventListener('click', showStats);
+$('statsBack').addEventListener('click', showHome);
+window.addEventListener('resize', () => { if (!$('statsView').hidden) { renderProgress(); renderWeeks(); renderMonths(); } });
+
+// ======================= REGLER & LÄRDOMAR =======================
+let rulesEdit = null; // { s, i } där i === items.length betyder ny punkt
+function showRules() { rulesEdit = null; show('rulesView'); renderRules(); }
+function renderRules() {
+  const secs = model.guidelines || [];
+  // "Tänka extra på just nu" visas först, övriga i sheetets ordning (index s pekar fortfarande på rätt rad i sheetet)
+  const order = secs.map((g, i) => i).sort((x, y) => (/tänka extra/i.test(secs[y].heading) ? 1 : 0) - (/tänka extra/i.test(secs[x].heading) ? 1 : 0));
+  $('rulesList').innerHTML = order.map(s => { const sec = secs[s]; return `<div class="card rsec" data-s="${s}">
+      <div class="rh"><span>${esc(sec.heading || 'Övrigt')}</span><small>${sec.items.length} st</small></div>
+      ${sec.items.map((it, i) => rulesEdit && rulesEdit.s === s && rulesEdit.i === i ? editBox(it, s, i) : `<button class="ritem" data-s="${s}" data-i="${i}">${esc(it)}</button>`).join('')}
+      ${rulesEdit && rulesEdit.s === s && rulesEdit.i === sec.items.length ? editBox('', s, sec.items.length) : `<button class="addbtn" data-add="${s}">+ Lägg till punkt</button>`}
+    </div>`; }).join('') || '<div class="center">Inga regler hittades (rad 4–7 i sheetet)</div>';
+  $('rulesList').querySelectorAll('.ritem').forEach(b => b.addEventListener('click', () => { rulesEdit = { s: +b.dataset.s, i: +b.dataset.i }; renderRules(); focusEdit(); }));
+  $('rulesList').querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => { rulesEdit = { s: +b.dataset.add, i: model.guidelines[+b.dataset.add].items.length }; renderRules(); focusEdit(); }));
+  const box = $('rulesList').querySelector('.redit');
+  if (box) {
+    box.querySelector('[data-act="cancel"]').addEventListener('click', () => { rulesEdit = null; renderRules(); });
+    box.querySelector('[data-act="save"]').addEventListener('click', () => saveRule(box.querySelector('textarea').value));
+    const del = box.querySelector('[data-act="del"]'); if (del) del.addEventListener('click', () => saveRule(null));
+  }
+}
+function editBox(text, s, i) {
+  return `<div class="redit"><textarea placeholder="Skriv punkten…">${esc(text)}</textarea>
+    <div class="acts">${i < model.guidelines[s].items.length ? '<button class="danger" data-act="del">Ta bort</button>' : '<span></span>'}
+      <span><button class="ghost" data-act="cancel">Avbryt</button> <button class="primary" data-act="save">Spara</button></span></div></div>`;
+}
+function focusEdit() { const ta = $('rulesList').querySelector('.redit textarea'); if (ta) { ta.focus(); ta.scrollIntoView({ block: 'center', behavior: 'smooth' }); } }
+async function saveRule(text) {
+  if (!rulesEdit) return;
+  const g = model.guidelines[rulesEdit.s];
+  const val = text == null ? null : String(text).replace(/\s*\n+\s*/g, ' ').trim();
+  if (val !== null && !val) return toast('Skriv något först', true);
+  const snap = snapshot();
+  if (val === null) g.items.splice(rulesEdit.i, 1); else g.items[rulesEdit.i] = val;
+  rulesEdit = null; renderRules(); toast(val === null ? 'Punkten borttagen' : 'Sparat');
+  commit(api('saveRules', [{ row: g.row, heading: g.heading, items: g.items.slice() }]),
+    () => { if (!$('rulesView').hidden && !rulesEdit) renderRules(); },
+    () => { restore(snap); if (!$('rulesView').hidden) renderRules(); });
+}
+$('rulesBtn').addEventListener('click', showRules);
+$('rulesBack').addEventListener('click', showHome);
+
+// ------- Start -------
+(async function init() {
+  const p = PIN_FROM_URL || storedPin();
+  if (!p) return showPin('');
+  pin = p;
+  // Finns en sparad modell i telefonen visas hemskärmen direkt; färskt data hämtas i bakgrunden och vyn ritas om om något ändrats
+  const cached = cachedModel();
+  if (cached) { model = cached; showHome(); } else loading(true);
+  // getData autentiserar självt – inget separat checkPin-anrop
+  try { const fresh = await call('getData', p); rememberPin(p); if (cached) applyModel(fresh); else { model = fresh; persistModel(); showHome(); } }
+  catch (e) {
+    const bad = /Fel PIN/i.test(e.message || '');
+    if (bad || !cached) { forgetPin(); showPin(bad ? 'Fel PIN' : (e.message || '')); }
+    else toast('Ingen kontakt med servern – visar senast sparade data', true);
+  }
+  finally { loading(false); }
+})();
+</script>
+</body>
+</html>
