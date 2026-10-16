@@ -673,14 +673,14 @@ function kickOutbox() { if (!outboxBusy()) return; outboxDelay = 5000; clearTime
 window.addEventListener('online', kickOutbox);
 window.addEventListener('pageshow', kickOutbox);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') kickOutbox(); });
-/** Statuspillen högst upp: "Synkar…" medan ett jobb skickas, "Väntar på nät · N" när det inte går fram. Inget alls när kön är tom. */
+/** Statuspillen högst upp visas bara när något inte gått fram ("Väntar på nät · N"). Medan det synkar visas inget – det sköter sig självt. */
 function renderSync() {
   const b = $('busy'); if (!b) return;
   const n = outboxActive().length;
-  if (!n) { b.hidden = true; return; }
   const running = outbox.some(j => j.running);
-  b.hidden = false; b.classList.toggle('wait', !running);
-  b.textContent = running ? 'Synkar…' + (n > 1 ? ' ' + n : '') : 'Väntar på nät · ' + n + (n === 1 ? ' ändring' : ' ändringar');
+  if (!n || running) { b.hidden = true; return; }
+  b.hidden = false; b.classList.add('wait');
+  b.textContent = 'Väntar på nät · ' + n + (n === 1 ? ' ändring' : ' ändringar');
 }
 function jobLabel(j) {
   const a = j.args || [];
@@ -858,8 +858,8 @@ function renderSection() {
     const y = e.date.slice(0, 4);
     if (y !== curYear) { curYear = y; const n = list.filter(x => x.date.startsWith(y)).length; html += `<div class="yr"><span>${y}</span><small>${n} pass</small></div>`; }
     const confirm = sec.pendingDel === e.row;
-    html += `<div class="row ${e.pending ? 'pending' : ''}"><div class="d">${fmtDate(e.date)}</div>
-      ${e.pending ? '<span class="pend">synkar…</span>' : `<button class="danger ${confirm ? 'confirm' : ''}" data-del="${e.row}" style="padding:6px 10px;font-size:14px">${confirm ? 'Bekräfta' : 'Ta bort'}</button>`}</div>`;
+    html += `<div class="row"><div class="d">${fmtDate(e.date)}</div>
+      ${e.pending ? '' : `<button class="danger ${confirm ? 'confirm' : ''}" data-del="${e.row}" style="padding:6px 10px;font-size:14px">${confirm ? 'Bekräfta' : 'Ta bort'}</button>`}</div>`;
   });
   $('secList').innerHTML = html || '<div class="center">Inget loggat än</div>';
   $('secList').querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => deleteSectionEntry(+b.dataset.del)));
@@ -971,8 +971,8 @@ function renderPass() {
   const limit = form.showAll ? sorted.length : 8;
   $('histCount').textContent = '(' + sorted.length + ' pass)';
   $('histBody').hidden = !form.histOpen; $('histToggle').setAttribute('aria-expanded', form.histOpen ? 'true' : 'false');
-  $('hist').innerHTML = sorted.slice(0, limit).map(e => { const v = entryVolume(e, p); return `<button class="item ${e.row === form.row ? 'active' : ''} ${e.pending ? 'pending' : ''}" data-row="${e.row}">
-      <div class="d">${fmtDate(e.date)}${e.pending ? '<span class="pend">synkar…</span>' : ''}</div>
+  $('hist').innerHTML = sorted.slice(0, limit).map(e => { const v = entryVolume(e, p); return `<button class="item ${e.row === form.row ? 'active' : ''}" data-row="${e.row}">
+      <div class="d">${fmtDate(e.date)}</div>
       <div class="v ${v ? '' : 'nodata'}">${v ? volLine(p, v) : '–'}</div>
     </button>`; }).join('') || '<div class="center">Inga pass än</div>';
   $('moreBtn').hidden = sorted.length <= limit;
