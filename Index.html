@@ -597,6 +597,7 @@ function isoWeekKey(iso) {
   return dt.getUTCFullYear() + '-W' + Math.ceil((((dt - y1) / 86400000) + 1) / 7);
 }
 function toast(msg, isErr) {
+  if (!isErr) return; // inga bekräftelserutor ("Sparat", "Borttaget" …) – knappen visar redan att det sparats; bara fel visas
   const t = $('toast'); t.textContent = msg; t.className = 'show' + (isErr ? ' err' : '');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.className = '', isErr ? 4000 : 2200);
 }
