@@ -21,6 +21,13 @@
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
     font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, Roboto, sans-serif; }
   body { padding-bottom: env(safe-area-inset-bottom); }
+  /* Stående läge alltid: iPhone ignorerar "orientation" i manifestet, så i liggande läge vrids hela appen tillbaka med CSS
+     (klassen sätts av JS utifrån åt vilket håll telefonen vridits). Body blir då själva rullytan. */
+  html.land-ccw, html.land-cw { overflow: hidden; height: 100%; }
+  html.land-ccw body, html.land-cw body { position: fixed; top: 0; left: 0; width: 100vh; height: 100vw; overflow-y: auto; overflow-x: hidden;
+    transform-origin: top left; padding-bottom: 0; -webkit-overflow-scrolling: touch; }
+  html.land-ccw body { transform: rotate(-90deg) translateX(-100%); }
+  html.land-cw body { transform: rotate(90deg) translateY(-100%); }
   [hidden] { display: none !important; }
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
   input, textarea { font: inherit; color: var(--text); }
@@ -1571,6 +1578,21 @@ async function saveRule(text) {
 }
 $('rulesBtn').addEventListener('click', showRules);
 $('rulesBack').addEventListener('click', showHome);
+
+// ------- Stående läge alltid -------
+// iOS låser inte orienteringen för webbappar, så i liggande läge vrids appen tillbaka med CSS (se stilarna för html.land-*).
+function applyOrientation() {
+  let a = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
+  a = ((a % 360) + 360) % 360;
+  const phone = Math.min(window.innerWidth, window.innerHeight) <= 600; // bara telefon – inte iPad/dator
+  const land = window.innerWidth > window.innerHeight;
+  document.documentElement.classList.toggle('land-ccw', phone && land && a === 90);  // telefonen vriden moturs (ovansidan åt vänster)
+  document.documentElement.classList.toggle('land-cw', phone && land && a === 270);  // telefonen vriden medurs (ovansidan åt höger)
+}
+applyOrientation();
+window.addEventListener('orientationchange', () => setTimeout(applyOrientation, 50));
+window.addEventListener('resize', applyOrientation);
+if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', () => setTimeout(applyOrientation, 50));
 
 // ------- Start -------
 (async function init() {
