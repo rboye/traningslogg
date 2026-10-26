@@ -28,9 +28,6 @@
     transform-origin: top left; padding-bottom: 0; -webkit-overflow-scrolling: touch; }
   html.land-ccw body { transform: rotate(-90deg) translateX(-100%); }
   html.land-cw body { transform: rotate(90deg) translateY(-100%); }
-  /* Under själva vridningen döljs innehållet och tonas sedan in upprätt – en blinkning i stället för ett hopp */
-  body { transition: opacity .15s; }
-  html.rotating body { opacity: 0; transition: none; }
   [hidden] { display: none !important; }
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
   input, textarea { font: inherit; color: var(--text); }
@@ -1593,14 +1590,9 @@ function applyOrientation() {
   document.documentElement.classList.toggle('land-cw', phone && land && a === 270);  // telefonen vriden medurs (ovansidan åt höger)
 }
 applyOrientation();
-let rotT = null;
-function onRotate() {
-  document.documentElement.classList.add('rotating'); applyOrientation();
-  clearTimeout(rotT); rotT = setTimeout(() => { applyOrientation(); document.documentElement.classList.remove('rotating'); }, 350);
-}
-window.addEventListener('orientationchange', onRotate);
+window.addEventListener('orientationchange', () => setTimeout(applyOrientation, 50));
 window.addEventListener('resize', applyOrientation);
-if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', onRotate);
+if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', () => setTimeout(applyOrientation, 50));
 
 // ------- Start -------
 (async function init() {
