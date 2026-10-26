@@ -53,6 +53,7 @@ MANIFEST = {
     "name": "Träningslogg",
     "short_name": "Träning",
     "display": "standalone",
+    "orientation": "portrait",
     "background_color": "#f2f3f6",
     "theme_color": "#0a7d4f",
     "lang": "sv",
